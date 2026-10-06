@@ -1,0 +1,38 @@
+name: Build & Testes Spring Boot
+
+on:
+  push:
+    branches: [ "main", "dev" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Configurar Java 17
+      uses: actions/setup-java@v3
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: maven
+        
+    - name: Correr Testes (Maven)
+      run: mvn clean test
+
+    # Só corre se os testes falharem
+    - name: Notificar Discord - FALHA ❌
+      if: failure()
+      run: |
+        curl -H "Content-Type: application/json" \
+        -d '{"content": "🚨 **ALERTA:** Os testes falharam no commit `${{ github.sha }}` feito por `${{ github.actor }}`! Vão consertar isto: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}' \
+        ${{ secrets.DISCORD_WEBHOOK_CI }}
+
+    # Só corre se os testes passarem
+    - name: Notificar Discord - SUCESSO ✅
+      if: success()
+      run: |
+        curl -H "Content-Type: application/json" \
+        -d '{"content": "✅ **SUCESSO:** A build e os testes passaram perfeitamente no commit `${{ github.sha }}`! Bom trabalho, `${{ github.actor }}`!"}' \
+        ${{ secrets.DISCORD_WEBHOOK_CI }}
