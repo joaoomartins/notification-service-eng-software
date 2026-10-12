@@ -1,23 +1,45 @@
 package pt.uportalegre.estgd.ei.es.notificationservice.exception;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
+
+import java.util.List;
 import java.util.Map;
 
 @ControllerAdvice
 public class GlobalExceptionHandler {
 
-    private final String DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1557003620359344279/QB57eQ56ix-PhEhI_YsB385X4-I0Tsgpou3UTr4U8GgsaanoVlHKXrbiZqeZMtNbFnfU";
+    @Value("${discord.webhook.url}")
+    private String webhookUrl;
+
+    /*@ExceptionHandler(NoResourceFoundException.class)
+    public void handleNotFound(NoResourceFoundException ex) {
+        System.out.println("Alguém tentou aceder a uma rota inexistente: " + ex.getMessage());
+    }*/
 
     @ExceptionHandler(Exception.class)
     public void handleAllExceptions(Exception ex) {
-        String mensagem = "⚠️ **ERRO NA API:**\n`" + ex.getMessage() + "`";
-
         try {
             RestTemplate restTemplate = new RestTemplate();
-            restTemplate.postForEntity(DISCORD_WEBHOOK, Map.of("content", mensagem), String.class);
+
+            Map<String, Object> embed = Map.of(
+                    "title", "🚨 Erro Crítico na API",
+                    "description", "```\n" + ex.getMessage() + "\n```",
+                    "color", 1671168
+            );
+
+            Map<String, Object> payload = Map.of(
+                    "content", "Urgente -> ver os logs rápido! @here",
+                    "embeds", List.of(embed)
+            );
+
+            restTemplate.postForEntity(webhookUrl, payload, String.class);
+
         } catch (Exception e) {
+            System.err.println("Falha ao enviar o alerta para o Discord!");
         }
 
         ex.printStackTrace();
