@@ -26,7 +26,7 @@
             <div class="card shadow-sm border-0 rounded-3">
                 <div class="card-body p-4 p-md-5">
 
-                    <form method="post" th:object="${request}">
+                    <form id="notificationsForm" method="post" th:object="${request}">
 
                         <!-- Mecanismo de Entrega -->
                         <div class="mb-4">
@@ -34,14 +34,27 @@
                                 Mecanismo de entrega:
                             </label>
                             <select id="mechanism" class="form-select" onchange="changeMechanism()">
-                                <option value="EMAIL">Email</option>
+                                <option th:each="type : ${T(pt.uportalegre.estgd.ei.es.notificationservice.model.NotificationType).values()}"
+                                        th:value="${type}"
+                                        th:text="${type}">
+                                </option>
                             </select>
                         </div>
 
-                        <p>From: <span thDynamic th:text="${@environment.getProperty('MAIL_USERNAME')}"></span></p>
-
                         <!-- Secção de Campos de Email -->
                         <div id="emailFields">
+
+                            <div class="mb-3">
+                                <label for="fromSender" class="form-label fw-semibold text-secondary">
+                                    De:
+                                </label>
+                                <input type="text"
+                                       id="fromSender"
+                                       class="form-control bg-light"
+                                       th:value="${@environment.getProperty('MAIL_USERNAME')}"
+                                       readonly>
+                            </div>
+
                             <div class="mb-3">
                                 <label for="toReceivers" class="form-label fw-semibold text-secondary">
                                     Destinatários (obrigatório):
@@ -52,6 +65,10 @@
                                        th:field="*{toReceivers}"
                                        placeholder="exemplo@email.com, outro@email.com"
                                        required>
+
+                                <div id="toEmailError" class="invalid-feedback" style="display:none">
+                                    Introduza um e-mail válido (ex: nome@gmail.com)
+                                </div>
                             </div>
 
                             <div class="mb-3">
@@ -63,6 +80,10 @@
                                        class="form-control"
                                        th:field="*{ccReceivers}"
                                        placeholder="Destinatários em CC, separados por vírgulas">
+
+                                <div id="ccEmailError" class="invalid-feedback" style="display:none">
+                                    Introduza um e-mail válido (ex: nome@gmail.com)
+                                </div>
                             </div>
 
                             <div class="mb-3">
@@ -74,6 +95,10 @@
                                        class="form-control"
                                        th:field="*{bccReceivers}"
                                        placeholder="Destinatários em BCC, separados por vírgulas">
+
+                                <div id="bccEmailError" class="invalid-feedback" style="display:none">
+                                    Introduza um e-mail válido (ex: nome@gmail.com)
+                                </div>
                             </div>
 
                             <div class="mb-3">
@@ -96,6 +121,19 @@
                                           th:field="*{content}"
                                           rows="8"
                                           required></textarea>
+                            </div>
+                        </div>
+
+                        <div id="smsFields" hidden>
+                            <div class="mb-3">
+                                <label for="fromSenderSMS" class="form-label fw-semibold text-secondary">
+                                    De:
+                                </label>
+                                <input type="text"
+                                       id="fromSenderSMS"
+                                       class="form-control bg-light"
+                                       th:value="${@environment.getProperty('PHONE_NUMBER')}"
+                                       readonly>
                             </div>
                         </div>
 
@@ -128,7 +166,57 @@
 
         document.getElementById("emailFields").hidden =
             mechanism !== "EMAIL";
+        document.getElementById("smsFields").hidden =
+            mechanism !== "SMS";
     }
+
+    // Escuta a submissão do formulário para validar os campos
+    document.getElementById("notificationsForm").addEventListener("submit", function(event) {
+        const mechanism = document.getElementById("mechanism").value;
+
+        // Só valida se o mecanismo ativo no momento for EMAIL
+        if (mechanism === "EMAIL") {
+            // Regex estrita que obriga a extensão (.pt, .com, etc.) e aceita múltiplos e-mails por vírgula
+            const emailRegex = /^\s*[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\s*(,\s*[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\s*)*$/;
+            let isFormValid = true;
+
+            function validateInputEmail(inputId, errorId, mandatory) {
+                const input = document.getElementById(inputId);
+                const errorDiv = document.getElementById(errorId);
+                const value = input.value.trim();
+
+                // Caso o campo esteja vazio e não seja obrigatório (CC e BCC)
+                if (value === "" && !mandatory) {
+                    input.classList.remove("is-invalid");
+                    errorDiv.style.display = "none";
+                    return;
+                }
+
+                // Executa o teste da Regex
+                if (!emailRegex.test(value)) {
+                    input.classList.add("is-invalid");
+                    errorDiv.style.display = "block";
+                    isFormValid = false; // Bloqueia o envio do formulário
+                } else {
+                    input.classList.remove("is-invalid");
+                    errorDiv.style.display = "none";
+                }
+            }
+
+            // Executa a função para os três campos estruturados
+            validateInputEmail("toReceivers", "toEmailError", true);
+            validateInputEmail("ccReceivers", "ccEmailError", false);
+            validateInputEmail("bccReceivers", "bccEmailError", false);
+
+    // Se houver algum erro detetado, cancela a submissão do formulário
+            if (!isFormValid) {
+                event.preventDefault();
+            }
+        }
+    });
+    // Executa a verificação assim que a página é aberta para ocultar a div correta por padrão
+    window.addEventListener('DOMContentLoaded', changeMechanism);
+
 </script>
 </body>
 </html>

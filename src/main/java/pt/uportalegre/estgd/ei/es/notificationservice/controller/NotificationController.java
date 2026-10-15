@@ -3,9 +3,11 @@ package pt.uportalegre.estgd.ei.es.notificationservice.controller;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import pt.uportalegre.estgd.ei.es.notificationservice.dto.EmailNotificationRequest;
 import pt.uportalegre.estgd.ei.es.notificationservice.model.EmailNotification;
@@ -23,13 +25,7 @@ public class NotificationController {
         this.notificationService = notificationService;
     }
 
-    //simple list
-    /*@GetMapping
-    public String listNotifications(Model model) {
-        model.addAttribute("notifications", notificationService.findAll());
-        return "notifications";
-    }*/
-
+    //accesing /notification user gonna saw page 0 and 5 items by default
     @GetMapping
     public String listNotifications(@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "5") int size, Model model) {
 
@@ -65,7 +61,7 @@ public class NotificationController {
         return "redirect:/notifications";
     }
 
-    @GetMapping("/{id}")
+    @GetMapping("/view/{id}")
     public String viewNotification(@PathVariable Long id, Model model) {
         Notification notification = notificationService.findById(id);
 

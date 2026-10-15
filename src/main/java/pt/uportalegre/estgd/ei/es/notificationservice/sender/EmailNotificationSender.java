@@ -6,6 +6,8 @@ import org.springframework.stereotype.Component;
 import pt.uportalegre.estgd.ei.es.notificationservice.model.EmailNotification;
 import pt.uportalegre.estgd.ei.es.notificationservice.model.Notification;
 
+import java.sql.SQLOutput;
+
 @Component
 public class EmailNotificationSender implements NotificationSender {
 
@@ -25,9 +27,13 @@ public class EmailNotificationSender implements NotificationSender {
         EmailNotification email = (EmailNotification) notification;
         SimpleMailMessage mailMessage = new SimpleMailMessage();
 
-        mailMessage.setTo(email.getToReceivers().toArray(new String[0])); //convert a list to array string
+        if(email.getToReceivers() != null && !email.getToReceivers().isEmpty()) {
+            System.out.println("Erro no to receivers");
+            mailMessage.setTo(email.getToReceivers().toArray(new String[0])); //convert a list to array string
+        }
 
         if (email.getCcReceivers() != null && !email.getCcReceivers().isEmpty()) { //not null && not empty
+            System.out.println("Erro no cc receivers");
             mailMessage.setCc(email.getCcReceivers().toArray(new String[0]));
         }
 
@@ -35,8 +41,13 @@ public class EmailNotificationSender implements NotificationSender {
             mailMessage.setBcc(email.getBccReceivers().toArray(new String[0]));
         }
 
-        mailMessage.setSubject(email.getSubject());
-        mailMessage.setText(email.getContent());
+        if (email.getSubject() != null && !email.getSubject().isEmpty()) {
+            mailMessage.setSubject(email.getSubject());
+        }
+
+        if (email.getContent() != null && !email.getContent().isEmpty()) {
+            mailMessage.setText(email.getContent());
+        }
 
         mailSender.send(mailMessage);
     }

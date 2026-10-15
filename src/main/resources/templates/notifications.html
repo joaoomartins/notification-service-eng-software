@@ -37,13 +37,11 @@
         </a>
     </div>
 
-    <!-- Barra de Filtros / Seletor de Itens por Página -->
+    <!-- Quantidade de notificações / selecionar quantas notificações se vêem -->
     <div class="d-flex justify-content-between align-items-center mb-3">
         <div class="text-muted small">
-            <span th:if="${notificationPage.totalElements > 0}">
-                A mostrar <strong th:text="${notificationPage.number * notificationPage.size + 1}">1</strong> a
-                <strong th:text="${(notificationPage.number + 1) * notificationPage.size > notificationPage.totalElements ? notificationPage.totalElements : (notificationPage.number + 1) * notificationPage.size}">5</strong>
-                de <strong th:text="${notificationPage.totalElements}">20</strong> notificações
+            <span th:if="${notificationPage.totalElements > 0}"> <!-- show if we had >= 1 notification -->
+                 Existem <strong th:text="${notificationPage.totalElements}">20</strong> notificações
             </span>
         </div>
 
@@ -59,7 +57,7 @@
         </form>
     </div>
 
-    <!-- Cartão com a Tabela -->
+    <!-- table card -->
     <div class="card shadow-sm border-0 rounded-3 overflow-hidden">
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
@@ -89,7 +87,7 @@
 
                     <td class="py-3 px-4 text-muted" th:text="${notification.formattedCreatedAt}"></td>
                     <td class="py-3 px-4 text-end">
-                        <a th:href="@{/notifications/{id}(id=${notification.id})}" class="btn btn-sm btn-outline-primary">
+                        <a th:href="@{/notifications/view/{id}(id=${notification.id})}" class="btn btn-sm btn-outline-primary">
                             Ver detalhes
                         </a>
                     </td>
