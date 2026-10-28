@@ -1,37 +1,18 @@
 package pt.uportalegre.estgd.ei.es.notificationservice.dto;
 
-import java.util.List;
-
 public class EmailNotificationRequest {
-
-    private List<String> toReceivers;
-    private List<String> ccReceivers;
-    private List<String> bccReceivers;
-    private String subject;
     private String content;
+    private String subject;
+    private String to;
+    private String cc;
+    private String bcc;
 
-    public List<String> getToReceivers() {
-        return toReceivers;
+    public String getContent() {
+        return content;
     }
 
-    public void setToReceivers(List<String> toReceivers) {
-        this.toReceivers = toReceivers;
-    }
-
-    public List<String> getCcReceivers() {
-        return ccReceivers;
-    }
-
-    public void setCcReceivers(List<String> ccReceivers) {
-        this.ccReceivers = ccReceivers;
-    }
-
-    public List<String> getBccReceivers() {
-        return bccReceivers;
-    }
-
-    public void setBccReceivers(List<String> bccReceivers) {
-        this.bccReceivers = bccReceivers;
+    public void setContent(String content) {
+        this.content = content;
     }
 
     public String getSubject() {
@@ -42,11 +23,27 @@ public class EmailNotificationRequest {
         this.subject = subject;
     }
 
-    public String getContent() {
-        return content;
+    public String getTo() {
+        return to;
     }
 
-    public void setContent(String content) {
-        this.content = content;
+    public void setTo(String to) {
+        this.to = to;
+    }
+
+    public String getCc() {
+        return cc;
+    }
+
+    public void setCc(String cc) {
+        this.cc = cc;
+    }
+
+    public String getBcc() {
+        return bcc;
+    }
+
+    public void setBcc(String bcc) {
+        this.bcc = bcc;
     }
 }

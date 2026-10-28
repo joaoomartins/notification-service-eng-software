@@ -2,86 +2,50 @@ package pt.uportalegre.estgd.ei.es.notificationservice.model;
 
 import jakarta.persistence.*;
 
-import javax.security.auth.login.FailedLoginException;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 
 @Entity
-@Inheritance(strategy = InheritanceType.JOINED)
-public abstract class Notification {
+@Table(name = "notifications")
+public class Notification {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private NotificationType type;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private NotificationStatus status;
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String content;
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    @Column(nullable = true)
-    private LocalDateTime sentAt;
-
-
-    public String getFormattedCreatedAt() {
+    @PrePersist //executed before save
+    protected void onCreate() {
         if (this.createdAt == null) {
-            return "-";
+            this.createdAt = LocalDateTime.now();
         }
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
-        return this.createdAt.format(formatter);
     }
 
-    public String getFormattedSentAt() {
-        if (this.sentAt == null) {
-            return "Not sent yet";
-        }
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
-        return this.sentAt.format(formatter);
+    protected Notification() {
+
+    }
+
+    public Notification(String content) {
+        this.content = content;
     }
 
     public Long getId() {
         return id;
     }
 
-    public void setId(Long id) {
-        this.id = id;
+    public String getContent() {
+        return content;
     }
 
-    public NotificationType getType() {
-        return type;
-    }
-
-    public void setType(NotificationType type) {
-        this.type = type;
-    }
-
-    public NotificationStatus getStatus() {
-        return status;
-    }
-
-    public void setStatus(NotificationStatus status) {
-        this.status = status;
+    public void setContent(String content) {
+        this.content = content;
     }
 
     public LocalDateTime getCreatedAt() {
         return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public LocalDateTime getSentAt() {
-        return sentAt;
-    }
-
-    public void setSentAt(LocalDateTime sentAt) {
-        this.sentAt = sentAt;
     }
 }

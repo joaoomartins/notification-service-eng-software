@@ -2,155 +2,186 @@
 <html lang="pt" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Notificações</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Notifications</title>
 
-    <link rel="icon" type="image/x-icon" th:href="@{/favicon.ico(v=1)}" />
-
-    <!-- Bootstrap CSS Local -->
+    <link rel="icon" type="image/x-icon" th:href="@{/favicon.ico(v=1)}">
     <link rel="stylesheet" th:href="@{/css/bootstrap.min.css}">
 </head>
+
 <body class="bg-light">
 
 <div class="container py-5">
 
-    <!-- Mensagens de Feedback Flash (Sucesso ou Erro) -->
-    <div th:if="${successMessage}"
-         class="alert alert-success alert-dismissible fade show shadow-sm auto-dismiss mb-4"
-         role="alert">
-        <span th:text="${successMessage}"></span>
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
+    <!-- Page header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h2 mb-0">Notifications</h1>
 
-    <div th:if="${errorMessage}"
-         class="alert alert-danger alert-dismissible fade show shadow-sm auto-dismiss mb-4"
-         role="alert">
-        <span th:text="${errorMessage}"></span>
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-
-    <!-- Cabeçalho e Ação Principal -->
-    <div class="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom">
-        <h1 class="h2 text-dark fw-bold mb-0">Notificações</h1>
-        <a th:href="@{/notifications/new}" class="btn btn-primary d-inline-flex align-items-center shadow-sm">
-            Criar notificação
+        <a th:href="@{/notifications/new}" class="btn btn-primary">
+            Create Notification
         </a>
     </div>
 
-    <!-- Quantidade de notificações / selecionar quantas notificações se vêem -->
+    <!-- Total notifications and page size -->
     <div class="d-flex justify-content-between align-items-center mb-3">
+
         <div class="text-muted small">
-            <span th:if="${notificationPage.totalElements > 0}"> <!-- show if we had >= 1 notification -->
-                 Existem <strong th:text="${notificationPage.totalElements}">20</strong> notificações
+            <span th:if="${notificationPage.totalElements > 0}">
+                Existem
+                <strong th:text="${notificationPage.totalElements}">18</strong>
+                notificações
             </span>
         </div>
 
-        <form method="get" th:action="@{/notifications}" class="d-flex align-items-center gap-2">
+        <form method="get"
+              th:action="@{/notifications}"
+              class="d-flex align-items-center gap-2">
+
             <input type="hidden" name="page" value="0">
-            <label for="sizeSelect" class="form-label small text-secondary mb-0 text-nowrap">Por página:</label>
-            <select id="sizeSelect" name="size" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
-                <option th:value="5" th:text="'5'" th:selected="${pageSize == 5}"></option>
-                <option th:value="10" th:text="'10'" th:selected="${pageSize == 10}"></option>
-                <option th:value="20" th:text="'20'" th:selected="${pageSize == 20}"></option>
-                <option th:value="50" th:text="'50'" th:selected="${pageSize == 50}"></option>
+
+            <label for="sizeSelect"
+                   class="form-label small text-secondary mb-0 text-nowrap">
+                Por página:
+            </label>
+
+            <select id="sizeSelect"
+                    name="size"
+                    class="form-select form-select-sm"
+                    style="width: auto;"
+                    onchange="this.form.submit()">
+
+                <option value="5"
+                        th:selected="${pageSize == 5}">
+                    5
+                </option>
+
+                <option value="10"
+                        th:selected="${pageSize == 10}">
+                    10
+                </option>
+
+                <option value="20"
+                        th:selected="${pageSize == 20}">
+                    20
+                </option>
+
+                <option value="50"
+                        th:selected="${pageSize == 50}">
+                    50
+                </option>
             </select>
         </form>
     </div>
 
-    <!-- table card -->
-    <div class="card shadow-sm border-0 rounded-3 overflow-hidden">
+    <!-- Empty state -->
+    <div th:if="${notificationPage.numberOfElements == 0}"
+         class="alert alert-info"
+         role="alert">
+        No notifications available yet.
+    </div>
+
+    <!-- Notifications table -->
+    <div th:if="${notificationPage.numberOfElements > 0}"
+         class="card shadow-sm">
+
+        <div class="card-header bg-white">
+            <h2 class="h5 mb-0">All Notifications</h2>
+        </div>
+
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light border-bottom">
+            <table class="table table-striped table-hover align-middle mb-0">
+
+                <thead class="table-dark">
                 <tr>
-                    <th scope="col" class="py-3 px-4 text-secondary text-uppercase fw-semibold" style="font-size: 0.8rem;">ID</th>
-                    <th scope="col" class="py-3 px-4 text-secondary text-uppercase fw-semibold" style="font-size: 0.8rem;">Tipo</th>
-                    <th scope="col" class="py-3 px-4 text-secondary text-uppercase fw-semibold" style="font-size: 0.8rem;">Estado</th>
-                    <th scope="col" class="py-3 px-4 text-secondary text-uppercase fw-semibold" style="font-size: 0.8rem;">Data de criação</th>
-                    <th scope="col" class="py-3 px-4 text-secondary text-uppercase fw-semibold text-end" style="font-size: 0.8rem;">Ações</th>
+                    <th scope="col">ID</th>
+                    <th scope="col">Subject</th>
+                    <th scope="col">Created At</th>
+                    <th scope="col" class="text-center">Details</th>
                 </tr>
                 </thead>
+
                 <tbody>
                 <tr th:each="notification : ${notificationPage.content}">
-                    <td class="py-3 px-4 fw-medium text-dark" th:text="${notification.id}"></td>
-                    <td class="py-3 px-4" th:text="${notification.type}"></td>
 
-                    <!-- Estado com Badge Colorido -->
-                    <td class="py-3 px-4">
-                        <span class="badge rounded-pill px-3 py-2 fw-semibold"
-                              th:text="${notification.status}"
-                              th:classappend="${notification.status.name() == 'SENT'} ? 'bg-success text-white' :
-                                             (${notification.status.name() == 'PENDING'} ? 'bg-warning text-dark' :
-                                             (${notification.status.name() == 'FAILED'} ? 'bg-danger text-white' : 'bg-secondary text-white'))">
-                        </span>
+                    <td th:text="${notification.id}">1</td>
+
+                    <td th:text="${@notificationService.findEmailSubjectByNotificationId(notification.id)}">
+                        Example subject
                     </td>
 
-                    <td class="py-3 px-4 text-muted" th:text="${notification.formattedCreatedAt}"></td>
-                    <td class="py-3 px-4 text-end">
-                        <a th:href="@{/notifications/view/{id}(id=${notification.id})}" class="btn btn-sm btn-outline-primary">
-                            Ver detalhes
+                    <td th:text="${#temporals.format(notification.createdAt, 'dd/MM/yyyy HH:mm')}">
+                        28/10/2026 12:00
+                    </td>
+
+                    <td class="text-center">
+                        <a th:href="@{/notifications/{id}(id=${notification.id})}"
+                           class="btn btn-outline-primary btn-sm">
+                            View Details
                         </a>
                     </td>
-                </tr>
-                <tr th:if="${notificationPage.isEmpty()}">
-                    <td colspan="5" class="py-5 text-center text-muted fst-italic">
-                        Ainda não existem notificações.
-                    </td>
+
                 </tr>
                 </tbody>
+
             </table>
         </div>
-
-        <!-- Rodapé do Cartão com a Paginação -->
-        <div th:if="${notificationPage.totalPages > 1}" class="card-footer bg-white border-top py-3 d-flex justify-content-center">
-            <nav aria-label="Navegação da tabela">
-                <ul class="pagination mb-0">
-
-                    <!-- Botão Anterior -->
-                    <li class="page-item" th:classappend="${notificationPage.first} ? 'disabled'">
-                        <a class="page-link"
-                           th:href="@{/notifications(page=${currentPage - 1}, size=${pageSize})}"
-                           aria-label="Anterior">
-                            &laquo; Anterior
-                        </a>
-                    </li>
-
-                    <!-- Números das Páginas -->
-                    <li class="page-item"
-                        th:each="pageNumber : ${#numbers.sequence(0, notificationPage.totalPages - 1)}"
-                        th:classappend="${pageNumber == currentPage} ? 'active'">
-                        <a class="page-link"
-                           th:href="@{/notifications(page=${pageNumber}, size=${pageSize})}"
-                           th:text="${pageNumber + 1}">
-                            1
-                        </a>
-                    </li>
-
-                    <!-- Botão Seguinte -->
-                    <li class="page-item" th:classappend="${notificationPage.last} ? 'disabled'">
-                        <a class="page-link"
-                           th:href="@{/notifications(page=${currentPage + 1}, size=${pageSize})}"
-                           aria-label="Seguinte">
-                            Seguinte &raquo;
-                        </a>
-                    </li>
-
-                </ul>
-            </nav>
-        </div>
     </div>
-</div>
 
-<!-- Script para fechar o alerta sozinho após 4 segundos -->
-<script>
-    setTimeout(() => {
-        const alerts = document.querySelectorAll('.auto-dismiss');
-        alerts.forEach(alert => {
-            alert.classList.remove('show');
-            setTimeout(() => alert.remove(), 300);
-        });
-    }, 4000);
-</script>
+    <!-- Pagination -->
+    <nav th:if="${notificationPage.totalPages > 1}"
+         aria-label="Pagination"
+         class="mt-4">
+
+        <ul class="pagination justify-content-center">
+
+            <!-- Previous page -->
+            <li class="page-item"
+                th:classappend="${notificationPage.first} ? 'disabled'">
+
+                <a class="page-link"
+                   th:if="${!notificationPage.first}"
+                   th:href="@{/notifications(page=${currentPage - 1}, size=${pageSize})}">
+                    Previous
+                </a>
+
+                <span class="page-link"
+                      th:if="${notificationPage.first}">
+                    Previous
+                </span>
+            </li>
+
+            <!-- Page numbers -->
+            <li class="page-item"
+                th:each="pageNumber : ${#numbers.sequence(0, notificationPage.totalPages - 1)}"
+                th:classappend="${pageNumber == currentPage} ? 'active'">
+
+                <a class="page-link"
+                   th:href="@{/notifications(page=${pageNumber}, size=${pageSize})}"
+                   th:text="${pageNumber + 1}">
+                    1
+                </a>
+            </li>
+
+            <!-- Next page -->
+            <li class="page-item"
+                th:classappend="${notificationPage.last} ? 'disabled'">
+
+                <a class="page-link"
+                   th:if="${!notificationPage.last}"
+                   th:href="@{/notifications(page=${currentPage + 1}, size=${pageSize})}">
+                    Next
+                </a>
+
+                <span class="page-link"
+                      th:if="${notificationPage.last}">
+                    Next
+                </span>
+            </li>
+
+        </ul>
+    </nav>
+
+</div>
 
 </body>
 </html>

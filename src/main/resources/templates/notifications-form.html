@@ -2,8 +2,10 @@
 <html lang="pt" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nova notificação</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Create Notification</title>
+
+    <link rel="icon" type="image/x-icon" th:href="@{/favicon.ico(v=1)}" />
 
     <!-- Bootstrap CSS Local -->
     <link rel="stylesheet" th:href="@{/css/bootstrap.min.css}">
@@ -11,146 +13,103 @@
 <body class="bg-light">
 
 <div class="container py-5">
+
     <div class="row justify-content-center">
         <div class="col-12 col-lg-8">
 
-            <!-- Cabeçalho -->
-            <div class="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom">
-                <h1 class="h2 text-dark fw-bold mb-0">Nova notificação</h1>
-                <a th:href="@{/notifications}" class="btn btn-outline-secondary btn-sm">
-                    Voltar à lista
-                </a>
+            <div class="mb-4">
+                <h1 class="h2">Create an Email Notification</h1>
+                <p class="text-secondary mb-0">
+                    Fill in the email details and choose whether to save or send the notification.
+                </p>
             </div>
 
-            <!-- Cartão do Formulário -->
-            <div class="card shadow-sm border-0 rounded-3">
-                <div class="card-body p-4 p-md-5">
+            <div class="card shadow-sm">
+                <div class="card-body p-4">
 
-                    <form id="notificationsForm" method="post" th:object="${request}">
+                    <form th:action="@{/notifications}" method="post">
 
-                        <!-- Mecanismo de Entrega -->
-                        <div class="mb-4">
-                            <label for="mechanism" class="form-label fw-semibold text-secondary">
-                                Mecanismo de entrega:
+                        <div class="mb-3">
+                            <label for="to" class="form-label">
+                                TO Recipients <span class="text-danger">*</span>
                             </label>
-                            <select id="mechanism" class="form-select" onchange="changeMechanism()">
-                                <option th:each="type : ${T(pt.uportalegre.estgd.ei.es.notificationservice.model.NotificationType).values()}"
-                                        th:value="${type}"
-                                        th:text="${type}">
-                                </option>
-                            </select>
-                        </div>
-
-                        <!-- Secção de Campos de Email -->
-                        <div id="emailFields">
-
-                            <div class="mb-3">
-                                <label for="fromSender" class="form-label fw-semibold text-secondary">
-                                    De:
-                                </label>
-                                <input type="text"
-                                       id="fromSender"
-                                       class="form-control bg-light"
-                                       th:value="${@environment.getProperty('MAIL_USERNAME')}"
-                                       readonly>
-                            </div>
-
-                            <div class="mb-3">
-                                <label for="toReceivers" class="form-label fw-semibold text-secondary">
-                                    Destinatários (obrigatório):
-                                </label>
-                                <input type="text"
-                                       id="toReceivers"
-                                       class="form-control"
-                                       th:field="*{toReceivers}"
-                                       placeholder="exemplo@email.com, outro@email.com"
-                                       required>
-
-                                <div id="toEmailError" class="invalid-feedback" style="display:none">
-                                    Introduza um e-mail válido (ex: nome@gmail.com)
-                                </div>
-                            </div>
-
-                            <div class="mb-3">
-                                <label for="ccReceivers" class="form-label fw-semibold text-secondary">
-                                    CC:
-                                </label>
-                                <input type="text"
-                                       id="ccReceivers"
-                                       class="form-control"
-                                       th:field="*{ccReceivers}"
-                                       placeholder="Destinatários em CC, separados por vírgulas">
-
-                                <div id="ccEmailError" class="invalid-feedback" style="display:none">
-                                    Introduza um e-mail válido (ex: nome@gmail.com)
-                                </div>
-                            </div>
-
-                            <div class="mb-3">
-                                <label for="bccReceivers" class="form-label fw-semibold text-secondary">
-                                    BCC:
-                                </label>
-                                <input type="text"
-                                       id="bccReceivers"
-                                       class="form-control"
-                                       th:field="*{bccReceivers}"
-                                       placeholder="Destinatários em BCC, separados por vírgulas">
-
-                                <div id="bccEmailError" class="invalid-feedback" style="display:none">
-                                    Introduza um e-mail válido (ex: nome@gmail.com)
-                                </div>
-                            </div>
-
-                            <div class="mb-3">
-                                <label for="subject" class="form-label fw-semibold text-secondary">
-                                    Assunto:
-                                </label>
-                                <input type="text"
-                                       id="subject"
-                                       class="form-control"
-                                       th:field="*{subject}"
-                                       required>
-                            </div>
-
-                            <div class="mb-4">
-                                <label for="content" class="form-label fw-semibold text-secondary">
-                                    Conteúdo:
-                                </label>
-                                <textarea id="content"
-                                          class="form-control"
-                                          th:field="*{content}"
-                                          rows="8"
-                                          required></textarea>
+                            <input type="text"
+                                   class="form-control"
+                                   id="to"
+                                   name="to"
+                                   required
+                                   placeholder="email1@exemplo.pt, email2@exemplo.pt">
+                            <div class="form-text">
+                                Required. Separate multiple email addresses with commas.
                             </div>
                         </div>
 
-                        <div id="smsFields" hidden>
-                            <div class="mb-3">
-                                <label for="fromSenderSMS" class="form-label fw-semibold text-secondary">
-                                    De:
-                                </label>
-                                <input type="text"
-                                       id="fromSenderSMS"
-                                       class="form-control bg-light"
-                                       th:value="${@environment.getProperty('PHONE_NUMBER')}"
-                                       readonly>
-                            </div>
+                        <div class="mb-3">
+                            <label for="cc" class="form-label">
+                                CC Recipients
+                            </label>
+                            <input type="text"
+                                   class="form-control"
+                                   id="cc"
+                                   name="cc"
+                                   placeholder="email3@exemplo.pt, email4@exemplo.pt">
                         </div>
 
-                        <!-- Botões de Ação -->
-                        <div class="d-flex flex-wrap gap-2 pt-2 border-top">
+                        <div class="mb-3">
+                            <label for="bcc" class="form-label">
+                                BCC Recipients
+                            </label>
+                            <input type="text"
+                                   class="form-control"
+                                   id="bcc"
+                                   name="bcc"
+                                   placeholder="email5@exemplo.pt">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="subject" class="form-label">
+                                Subject <span class="text-danger">*</span>
+                            </label>
+                            <input type="text"
+                                   class="form-control"
+                                   id="subject"
+                                   name="subject"
+                                   required>
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="content" class="form-label">
+                                Content <span class="text-danger">*</span>
+                            </label>
+                            <textarea class="form-control"
+                                      id="content"
+                                      name="content"
+                                      required
+                                      rows="6"
+                                      placeholder="Write your notification here..."></textarea>
+                        </div>
+
+                        <div class="d-flex flex-wrap gap-2">
                             <button type="submit"
-                                    class="btn btn-secondary px-4 shadow-sm"
-                                    th:formaction="@{/notifications/save}">
-                                Guardar
+                                    class="btn btn-outline-primary"
+                                    name="action"
+                                    value="save">
+                                Save
                             </button>
 
                             <button type="submit"
-                                    class="btn btn-primary px-4 shadow-sm"
-                                    th:formaction="@{/notifications/send}">
-                                Guardar e enviar
+                                    class="btn btn-primary"
+                                    name="action"
+                                    value="send">
+                                Save and Send
                             </button>
+
+                            <a th:href="@{/notifications}"
+                               class="btn btn-outline-secondary ms-sm-auto">
+                                Cancel
+                            </a>
                         </div>
+
                     </form>
 
                 </div>
@@ -158,65 +117,8 @@
 
         </div>
     </div>
+
 </div>
 
-<script>
-    function changeMechanism() {
-        const mechanism = document.getElementById("mechanism").value;
-
-        document.getElementById("emailFields").hidden =
-            mechanism !== "EMAIL";
-        document.getElementById("smsFields").hidden =
-            mechanism !== "SMS";
-    }
-
-    // Escuta a submissão do formulário para validar os campos
-    document.getElementById("notificationsForm").addEventListener("submit", function(event) {
-        const mechanism = document.getElementById("mechanism").value;
-
-        // Só valida se o mecanismo ativo no momento for EMAIL
-        if (mechanism === "EMAIL") {
-            // Regex estrita que obriga a extensão (.pt, .com, etc.) e aceita múltiplos e-mails por vírgula
-            const emailRegex = /^\s*[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\s*(,\s*[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\s*)*$/;
-            let isFormValid = true;
-
-            function validateInputEmail(inputId, errorId, mandatory) {
-                const input = document.getElementById(inputId);
-                const errorDiv = document.getElementById(errorId);
-                const value = input.value.trim();
-
-                // Caso o campo esteja vazio e não seja obrigatório (CC e BCC)
-                if (value === "" && !mandatory) {
-                    input.classList.remove("is-invalid");
-                    errorDiv.style.display = "none";
-                    return;
-                }
-
-                // Executa o teste da Regex
-                if (!emailRegex.test(value)) {
-                    input.classList.add("is-invalid");
-                    errorDiv.style.display = "block";
-                    isFormValid = false; // Bloqueia o envio do formulário
-                } else {
-                    input.classList.remove("is-invalid");
-                    errorDiv.style.display = "none";
-                }
-            }
-
-            // Executa a função para os três campos estruturados
-            validateInputEmail("toReceivers", "toEmailError", true);
-            validateInputEmail("ccReceivers", "ccEmailError", false);
-            validateInputEmail("bccReceivers", "bccEmailError", false);
-
-    // Se houver algum erro detetado, cancela a submissão do formulário
-            if (!isFormValid) {
-                event.preventDefault();
-            }
-        }
-    });
-    // Executa a verificação assim que a página é aberta para ocultar a div correta por padrão
-    window.addEventListener('DOMContentLoaded', changeMechanism);
-
-</script>
 </body>
 </html>

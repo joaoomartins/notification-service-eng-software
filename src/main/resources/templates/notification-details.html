@@ -2,8 +2,10 @@
 <html lang="pt" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Detalhes da notificação</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Notification Details</title>
+
+    <link rel="icon" type="image/x-icon" th:href="@{/favicon.ico(v=1)}" />
 
     <!-- Bootstrap CSS Local -->
     <link rel="stylesheet" th:href="@{/css/bootstrap.min.css}">
@@ -11,115 +13,218 @@
 <body class="bg-light">
 
 <div class="container py-5">
-    <div class="row justify-content-center">
-        <div class="col-12 col-lg-9">
 
-            <!-- Cabeçalho e Ação de Retorno -->
-            <div class="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom">
-                <h1 class="h2 text-dark fw-bold mb-0">Detalhes da notificação</h1>
-                <a th:href="@{/notifications}" class="btn btn-outline-secondary btn-sm">
-                    Voltar à lista
-                </a>
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+        <h1 class="h2 mb-0">Notification Details</h1>
+
+        <a th:href="@{/notifications}"
+           class="btn btn-outline-secondary">
+            Back to List
+        </a>
+    </div>
+
+    <!-- Notification information -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white">
+            <h2 class="h5 mb-0">General Information</h2>
+        </div>
+
+        <div class="card-body">
+            <dl class="row mb-0">
+                <dt class="col-sm-3">ID</dt>
+                <dd class="col-sm-9" th:text="${notification.id}"></dd>
+
+                <dt class="col-sm-3">Content</dt>
+                <dd class="col-sm-9"
+                    style="white-space: pre-wrap;"
+                    th:text="${notification.content}"></dd>
+
+                <dt class="col-sm-3">Created At</dt>
+                <dd class="col-sm-9"
+                    th:text="${#temporals.format(notification.createdAt, 'dd/MM/yyyy HH:mm')}"></dd>
+            </dl>
+        </div>
+    </div>
+
+    <!-- Deliveries -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-white">
+            <h2 class="h5 mb-0">Deliveries</h2>
+        </div>
+
+        <div class="card-body">
+
+            <div th:if="${#lists.isEmpty(deliveries)}"
+                 class="alert alert-info mb-0">
+                This notification does not have any deliveries yet.
             </div>
 
-            <!-- Cartão: Dados Principais da Notificação -->
-            <div class="card shadow-sm border-0 rounded-3 mb-4">
-                <div class="card-body p-4">
-                    <div class="row g-3">
-                        <div class="col-sm-6 col-md-4">
-                            <p class="mb-0 text-secondary small fw-semibold text-uppercase">ID</p>
-                            <p class="fs-6 fw-bold text-dark mb-0" th:text="${notification.id}"></p>
-                        </div>
-                        <div class="col-sm-6 col-md-4">
-                            <p class="mb-0 text-secondary small fw-semibold text-uppercase">Tipo</p>
-                            <p class="fs-6 text-dark mb-0" th:text="${notification.type}"></p>
-                        </div>
-                        <div class="col-sm-6 col-md-4">
-                            <p class="mb-0 text-secondary small fw-semibold text-uppercase">Estado</p>
-                            <p class="fs-6 text-dark mb-0" th:text="${notification.status}"></p>
-                        </div>
-                        <div class="col-sm-6 col-md-6 border-top pt-3">
-                            <p class="mb-0 text-secondary small fw-semibold text-uppercase">Data de criação</p>
-                            <p class="fs-6 text-dark mb-0" th:text="${notification.formattedCreatedAt}"></p>
-                        </div>
+            <div th:unless="${#lists.isEmpty(deliveries)}"
+                 class="table-responsive">
 
-                        <div class="col-sm-6 col-md-6 border-top pt-3">
-                            <p class="mb-0 text-secondary small fw-semibold text-uppercase">Data de envio</p>
-                            <p class="fs-6 text-dark mb-0" th:text="${notification.formattedSentAt}"></p>
-                        </div>
-                    </div>
+                <table class="table table-striped table-hover align-middle mb-0">
+                    <thead class="table-dark">
+                    <tr>
+                        <th scope="col">Delivery ID</th>
+                        <th scope="col">Mechanism</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Sent Time</th>
+                        <th scope="col">Actions</th>
+                    </tr>
+                    </thead>
+
+                    <tbody>
+                    <tr th:each="delivery : ${deliveries}">
+                        <td th:text="${delivery.id}"></td>
+                        <td th:text="${delivery.type}"></td>
+
+                        <td>
+                            <span class="badge"
+                                  th:classappend="${delivery.status.name() == 'SENT'} ? ' text-bg-success' :
+                                                  (${delivery.status.name() == 'FAILED'} ? ' text-bg-danger' : ' text-bg-warning')"
+                                  th:text="${delivery.status}">
+                            </span>
+                        </td>
+
+                        <td th:text="${delivery.sentAt != null ? #temporals.format(delivery.sentAt, 'dd/MM/yyyy HH:mm') : '-'}"></td>
+
+                        <td>
+                            <div class="d-flex flex-wrap gap-2">
+
+                                <form th:if="${delivery.status.name() != 'SENT'}"
+                                      th:action="@{/deliveries/{id}/send(id=${delivery.id})}"
+                                      method="post">
+
+                                    <button type="submit"
+                                            class="btn btn-sm"
+                                            th:classappend="${delivery.status.name() == 'FAILED'} ? ' btn-warning' : ' btn-primary'"
+                                            th:text="${delivery.status.name() == 'FAILED' ? 'Resend' : 'Send'}">
+                                    </button>
+                                </form>
+
+                                <span th:if="${delivery.status.name() == 'SENT'}"
+                                      class="text-success small align-self-center">
+                                    Sent
+                                </span>
+
+                                <button type="button"
+                                        th:if="${delivery.type.name() == 'EMAIL'}"
+                                        class="btn btn-outline-primary btn-sm"
+                                        th:attr="data-delivery-id=${delivery.id}"
+                                        onclick="showEmailDetails(this.dataset.deliveryId)">
+                                    View Details
+                                </button>
+
+                            </div>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Email details modal -->
+<div class="modal fade"
+     id="emailDetailsModal"
+     tabindex="-1"
+     aria-labelledby="emailDetailsModalLabel"
+     aria-hidden="true">
+
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <h2 class="modal-title fs-5" id="emailDetailsModalLabel">
+                    Email Details
+                </h2>
+
+                <button type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Close">
+                </button>
+            </div>
+
+            <div class="modal-body">
+
+                <div class="mb-3">
+                    <strong>Subject</strong>
+                    <p id="emailSubject" class="mb-0"></p>
                 </div>
-            </div>
 
-            <!-- Secção: Detalhes do Email -->
-            <section th:if="${emailNotification != null}">
-                <div class="card shadow-sm border-0 rounded-3 mb-4">
-                    <div class="card-header bg-white border-bottom py-3 px-4">
-                        <h2 class="h5 fw-bold text-dark mb-0">Detalhes do email</h2>
-                    </div>
-                    <div class="card-body p-4">
+                <hr>
 
-                        <!-- Destinatários Principais -->
-                        <div class="mb-3">
-                            <p class="fw-semibold text-secondary mb-1">Para:</p>
-                            <ul class="list-group list-group-flush border rounded-2">
-                                <li class="list-group-item py-2 px-3"
-                                    th:each="receiver : ${emailNotification.toReceivers}"
-                                    th:text="${receiver}"></li>
-                            </ul>
-                        </div>
-
-                        <!-- Destinatários CC -->
-                        <div class="mb-3" th:if="${!#lists.isEmpty(emailNotification.ccReceivers)}">
-                            <p class="fw-semibold text-secondary mb-1">CC:</p>
-                            <ul class="list-group list-group-flush border rounded-2">
-                                <li class="list-group-item py-2 px-3"
-                                    th:each="receiver : ${emailNotification.ccReceivers}"
-                                    th:text="${receiver}"></li>
-                            </ul>
-                        </div>
-
-                        <!-- Destinatários BCC -->
-                        <div class="mb-3" th:if="${!#lists.isEmpty(emailNotification.bccReceivers)}">
-                            <p class="fw-semibold text-secondary mb-1">BCC:</p>
-                            <ul class="list-group list-group-flush border rounded-2">
-                                <li class="list-group-item py-2 px-3"
-                                    th:each="receiver : ${emailNotification.bccReceivers}"
-                                    th:text="${receiver}"></li>
-                            </ul>
-                        </div>
-
-                        <!-- Assunto -->
-                        <div class="mb-3 pb-2 border-bottom">
-                            <p class="mb-1 fw-semibold text-secondary">Assunto:</p>
-                            <p class="fs-6 text-dark fw-medium" th:text="${emailNotification.subject}"></p>
-                        </div>
-
-                        <!-- Conteúdo -->
-                        <div>
-                            <p class="fw-semibold text-secondary mb-2">Conteúdo:</p>
-                            <pre class="bg-light p-3 border rounded-3 text-dark text-wrap font-monospace mb-0"
-                                 style="max-height: 350px; overflow-y: auto;"
-                                 th:text="${emailNotification.content}"></pre>
-                        </div>
-
-                    </div>
+                <div class="mb-3">
+                    <strong>Recipients</strong>
+                    <ul id="emailRecipients" class="list-group mt-2"></ul>
                 </div>
-            </section>
 
-            <!-- Ação de Envio/Reenvio -->
-            <div th:if="${notification.status.name() != 'SENT'}" class="d-flex align-items-center mb-3">
-                <form th:action="@{/notifications/{id}/send(id=${notification.id})}" method="post">
-                    <button type="submit"
-                            class="btn btn-primary px-4 shadow-sm"
-                            th:text="${notification.status.name() == 'FAILED' ? 'Reenviar email' : 'Enviar email'}">
-                    </button>
-                </form>
+                <hr>
+
+                <div>
+                    <strong>Content</strong>
+                    <p id="emailContent"
+                       class="border rounded bg-light p-3 mt-2 mb-0"
+                       style="white-space: pre-wrap;"></p>
+                </div>
+
             </div>
-
         </div>
     </div>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    async function showEmailDetails(deliveryId) {
+        try {
+            const response = await fetch(`/deliveries/${deliveryId}/details`);
+
+            if (!response.ok) {
+                alert("Could not load the email details.");
+                return;
+            }
+
+            const email = await response.json();
+
+            document.getElementById("emailSubject").textContent =
+                email.subject ?? "(No subject)";
+
+            document.getElementById("emailContent").textContent =
+                email.content ?? "";
+
+            const recipientsList = document.getElementById("emailRecipients");
+            recipientsList.replaceChildren();
+
+            for (const recipient of (email.recipients ?? [])) {
+                const item = document.createElement("li");
+                item.className = "list-group-item";
+
+                const type = document.createElement("span");
+                type.className = "badge text-bg-secondary me-2";
+                type.textContent = recipient.recipientType;
+
+                const address = document.createElement("span");
+                address.textContent = recipient.emailAddress;
+
+                item.append(type, address);
+                recipientsList.appendChild(item);
+            }
+
+            bootstrap.Modal.getOrCreateInstance(
+                document.getElementById("emailDetailsModal")
+            ).show();
+
+        } catch (error) {
+            alert("An error occurred while loading the email details.");
+            console.error(error);
+        }
+    }
+</script>
 
 </body>
 </html>

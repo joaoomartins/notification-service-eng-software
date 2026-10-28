@@ -3,52 +3,56 @@ package pt.uportalegre.estgd.ei.es.notificationservice.sender;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Component;
-import pt.uportalegre.estgd.ei.es.notificationservice.model.EmailNotification;
-import pt.uportalegre.estgd.ei.es.notificationservice.model.Notification;
+import pt.uportalegre.estgd.ei.es.notificationservice.model.*;
+import pt.uportalegre.estgd.ei.es.notificationservice.model.enums.EmailRecipientType;
+import pt.uportalegre.estgd.ei.es.notificationservice.model.enums.NotificationType;
+import pt.uportalegre.estgd.ei.es.notificationservice.repository.EmailDetailsRepository;
 
-import java.sql.SQLOutput;
+import java.util.List;
 
 @Component
 public class EmailNotificationSender implements NotificationSender {
 
     private final JavaMailSender mailSender;
+    private final EmailDetailsRepository emailDetailsRepository;
 
-    public EmailNotificationSender(JavaMailSender mailSender) {
+    public EmailNotificationSender(JavaMailSender mailSender, EmailDetailsRepository emailDetailsRepository) {
         this.mailSender = mailSender;
+        this.emailDetailsRepository = emailDetailsRepository;
     }
 
     @Override
-    public void send(Notification notification) {
+    public void send(NotificationDelivery delivery) {
 
-        if(!(notification instanceof EmailNotification)) { //verify if is a notification instance
-            throw new IllegalArgumentException(("Notification type not supported by EmailNotificationSender"));
-        }
+        //find a notification details
+        EmailDetails emailDetails = emailDetailsRepository.findByDeliveryId(delivery.getId()).orElseThrow(() ->
+                new IllegalStateException("Email details not found for delivery " + delivery.getId()));
 
-        EmailNotification email = (EmailNotification) notification;
-        SimpleMailMessage mailMessage = new SimpleMailMessage();
+        List<EmailRecipient> recipients = emailDetails.getRecipients();
 
-        if(email.getToReceivers() != null && !email.getToReceivers().isEmpty()) {
-            System.out.println("Erro no to receivers");
-            mailMessage.setTo(email.getToReceivers().toArray(new String[0])); //convert a list to array string
-        }
+        String[] to = filterRecipients(recipients, EmailRecipientType.TO);
+        String[] cc = filterRecipients(recipients, EmailRecipientType.CC);
+        String[] bcc = filterRecipients(recipients, EmailRecipientType.BCC);
 
-        if (email.getCcReceivers() != null && !email.getCcReceivers().isEmpty()) { //not null && not empty
-            System.out.println("Erro no cc receivers");
-            mailMessage.setCc(email.getCcReceivers().toArray(new String[0]));
-        }
+        SimpleMailMessage message = new SimpleMailMessage();
+        if (to.length > 0) message.setTo(to);
+        if (cc.length > 0) message.setCc(cc);
+        if (bcc.length > 0) message.setBcc(bcc);
 
-        if (email.getBccReceivers() != null && !email.getBccReceivers().isEmpty()) {
-            mailMessage.setBcc(email.getBccReceivers().toArray(new String[0]));
-        }
+        message.setSubject(emailDetails.getSubject());
+        message.setText(delivery.getNotification().getContent());
 
-        if (email.getSubject() != null && !email.getSubject().isEmpty()) {
-            mailMessage.setSubject(email.getSubject());
-        }
+        mailSender.send(message);
+    }
 
-        if (email.getContent() != null && !email.getContent().isEmpty()) {
-            mailMessage.setText(email.getContent());
-        }
+    @Override
+    public boolean supports(NotificationType type) {
+        return type == NotificationType.EMAIL;
+    }
 
-        mailSender.send(mailMessage);
+    private String[] filterRecipients(List<EmailRecipient> recipients, EmailRecipientType type) {
+        return recipients.stream().filter(r -> r.getRecipientType() == type)
+                .flatMap(r -> java.util.Arrays.stream(r.getEmailAddress().split("[,;]")))
+                .map(String::trim).filter(address -> !address.isEmpty()).toArray(String[]::new);
     }
 }

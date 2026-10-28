@@ -1,4 +1,4 @@
-package pt.uportalegre.estgd.ei.es.notificationservice.model;
+package pt.uportalegre.estgd.ei.es.notificationservice.model.enums;
 
 public enum NotificationStatus {
     FAILED,
