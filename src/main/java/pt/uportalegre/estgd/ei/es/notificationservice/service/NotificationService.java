@@ -1,3 +1,4 @@
+
 package pt.uportalegre.estgd.ei.es.notificationservice.service;
 
 import jakarta.transaction.Transactional;
@@ -5,16 +6,19 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.mail.MailException;
 import org.springframework.stereotype.Service;
+
 import pt.uportalegre.estgd.ei.es.notificationservice.dto.EmailDetailsDto;
 import pt.uportalegre.estgd.ei.es.notificationservice.dto.NotificationListItem;
 import pt.uportalegre.estgd.ei.es.notificationservice.model.*;
+import pt.uportalegre.estgd.ei.es.notificationservice.model.enums.DeliveryAttemptResult;
 import pt.uportalegre.estgd.ei.es.notificationservice.model.enums.EmailRecipientType;
+import pt.uportalegre.estgd.ei.es.notificationservice.model.enums.NotificationStatus;
 import pt.uportalegre.estgd.ei.es.notificationservice.model.enums.NotificationType;
+import pt.uportalegre.estgd.ei.es.notificationservice.repository.DeliveryAttemptRepository;
 import pt.uportalegre.estgd.ei.es.notificationservice.repository.EmailDetailsRepository;
 import pt.uportalegre.estgd.ei.es.notificationservice.repository.NotificationDeliveryRepository;
 import pt.uportalegre.estgd.ei.es.notificationservice.repository.NotificationRepository;
 import pt.uportalegre.estgd.ei.es.notificationservice.sender.NotificationSender;
-import pt.uportalegre.estgd.ei.es.notificationservice.model.enums.NotificationStatus;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -26,12 +30,16 @@ public class NotificationService {
     private final NotificationRepository notificationRepository;
     private final NotificationDeliveryRepository deliveryRepository;
     private final EmailDetailsRepository emailDetailsRepository;
+    private final DeliveryAttemptRepository attemptRepository;
     private final List<NotificationSender> senders;
 
-    public NotificationService(NotificationRepository notificationRepository, NotificationDeliveryRepository deliveryRepository, EmailDetailsRepository emailDetailsRepository, List<NotificationSender> senders) {
+    public NotificationService(NotificationRepository notificationRepository, NotificationDeliveryRepository deliveryRepository, EmailDetailsRepository emailDetailsRepository,
+            DeliveryAttemptRepository attemptRepository, List<NotificationSender> senders) {
+
         this.notificationRepository = notificationRepository;
         this.deliveryRepository = deliveryRepository;
         this.emailDetailsRepository = emailDetailsRepository;
+        this.attemptRepository = attemptRepository;
         this.senders = senders;
     }
 
@@ -44,25 +52,42 @@ public class NotificationService {
     }
 
     public Notification findNotificationById(Long id) {
-        return notificationRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Notification not found: " + id));
+        return notificationRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Notification not found: " + id));
     }
 
     public List<NotificationDelivery> findDeliveriesByNotificationId(Long notificationId) {
         return deliveryRepository.findByNotificationId(notificationId);
     }
 
+    // Creates a notification with the default limit of 3 attempts.
     @Transactional
     public Notification createEmailNotification(String content, String subject, List<EmailRecipient> recipients) {
+        return createEmailNotification(content, subject, recipients, 3);
+    }
 
-        //cant create a notification without content
+    // Creates a notification with a configurable attempt limit.
+    @Transactional
+    public Notification createEmailNotification(String content, String subject, List<EmailRecipient> recipients, int maxAttempts) {
+
+        if (maxAttempts < 1) {
+            throw new IllegalArgumentException("Maximum attempts must be at least 1.");
+        }
+
+        if (recipients == null || recipients.stream().noneMatch(
+                recipient -> recipient.getRecipientType() == EmailRecipientType.TO)) {throw new IllegalArgumentException("At least one TO recipient is required.");
+        }
+
         Notification notification = new Notification(content);
         notification = notificationRepository.save(notification);
 
-        //associate a type to this notification
-        NotificationDelivery delivery = new NotificationDelivery(notification, NotificationType.EMAIL);
+        NotificationDelivery delivery = new NotificationDelivery(
+                notification,
+                NotificationType.EMAIL,
+                maxAttempts);
+
         delivery = deliveryRepository.save(delivery);
 
-        //
         EmailDetails emailDetails = new EmailDetails(delivery, subject);
         emailDetails.getRecipients().addAll(recipients);
 
@@ -71,93 +96,122 @@ public class NotificationService {
         return notification;
     }
 
+    // Accepts recipient addresses separated by commas or semicolons.
     @Transactional
-    public Notification createEmailNotification(
-            String content,
-            String subject,
-            String to,
-            String cc,
-            String bcc) {
+    public Notification createEmailNotification(String content, String subject, String to, String cc, String bcc) {
+        return createEmailNotification(content, subject, to, cc, bcc, 3);
+    }
 
-        List<EmailRecipient> recipients = new java.util.ArrayList<>();
+    @Transactional
+    public Notification createEmailNotification(String content, String subject, String to, String cc, String bcc, int maxAttempts) {
+
+        List<EmailRecipient> recipients = new ArrayList<>();
 
         recipients.addAll(parseRecipients(to, EmailRecipientType.TO));
         recipients.addAll(parseRecipients(cc, EmailRecipientType.CC));
         recipients.addAll(parseRecipients(bcc, EmailRecipientType.BCC));
 
         if (recipients.stream().noneMatch(
-                recipient -> recipient.getRecipientType() == EmailRecipientType.TO)) {
-            throw new IllegalArgumentException(
-                    "At least one TO recipient is required.");
+                recipient -> recipient.getRecipientType() == EmailRecipientType.TO)) {throw new IllegalArgumentException("At least one TO recipient is required.");
         }
 
-        return createEmailNotification(content, subject, recipients);
+        return createEmailNotification(content, subject, recipients, maxAttempts);
     }
 
+    // Called by the background worker to process one delivery.
     @Transactional
     public NotificationDelivery sendDelivery(Long deliveryId) {
 
         NotificationDelivery delivery = deliveryRepository.findById(deliveryId)
                 .orElseThrow(() -> new IllegalArgumentException("Delivery not found: " + deliveryId));
 
+        // A successful delivery must never be sent again automatically.
+        if (delivery.getStatus() == NotificationStatus.SENT) {
+            return delivery;
+        }
+
+        // Do not exceed the configured attempt limit.
+        if (delivery.getAttemptCount() >= delivery.getMaxAttempts()) {
+            delivery.setStatus(NotificationStatus.FAILED);
+            return deliveryRepository.save(delivery);
+        }
+
         NotificationSender sender = senders.stream()
                 .filter(s -> s.supports(delivery.getType())).findFirst()
                 .orElseThrow(() -> new IllegalStateException("No sender available for type: " + delivery.getType()));
+
+        // Count this attempt before invoking the sender.
+        delivery.incrementAttemptCount();
+        int attemptNumber = delivery.getAttemptCount();
 
         try {
             sender.send(delivery);
 
             delivery.setStatus(NotificationStatus.SENT);
             delivery.setSentAt(LocalDateTime.now());
+
+            DeliveryAttempt attempt = new DeliveryAttempt(delivery, attemptNumber, DeliveryAttemptResult.SUCCESS, null);
+
+            attemptRepository.save(attempt);
+
         } catch (MailException exception) {
-            delivery.setStatus(NotificationStatus.FAILED);
+
             delivery.setSentAt(null);
+
+            boolean attemptsExhausted = delivery.getAttemptCount() >= delivery.getMaxAttempts();
+
+            delivery.setStatus(attemptsExhausted ? NotificationStatus.FAILED : NotificationStatus.PENDING);
+
+            DeliveryAttempt attempt = new DeliveryAttempt(delivery, attemptNumber, DeliveryAttemptResult.FAILURE, exception.getMessage());
+
+            attemptRepository.save(attempt);
         }
 
         return deliveryRepository.save(delivery);
     }
 
-    public List<EmailRecipient> parseRecipients(String addresses, EmailRecipientType type) {
+    public List<EmailRecipient> parseRecipients(
+            String addresses,
+            EmailRecipientType type) {
+
         if (addresses == null || addresses.isBlank()) {
             return List.of();
         }
 
-        List<EmailRecipient> list = new ArrayList<>();
+        List<EmailRecipient> recipients = new ArrayList<>();
 
         for (String address : addresses.split("[,;]")) {
             String trimmed = address.trim();
+
             if (!trimmed.isEmpty()) {
-                list.add(new EmailRecipient(trimmed, type));
+                recipients.add(new EmailRecipient(trimmed, type));
             }
         }
-        return list;
+
+        return recipients;
     }
 
-
     public String findEmailSubjectByNotificationId(Long notificationId) {
+
         List<NotificationDelivery> deliveries = deliveryRepository.findByNotificationId(notificationId);
 
         for (NotificationDelivery delivery : deliveries) {
             if (delivery.getType() == NotificationType.EMAIL) {
-                return emailDetailsRepository.findByDeliveryId(delivery.getId())
-                        .map(EmailDetails::getSubject)
-                        .orElse("(No subject)");
+                return emailDetailsRepository.findByDeliveryId(delivery.getId()).map(EmailDetails::getSubject).orElse("(No subject)");
             }
         }
 
         return "(No subject)";
     }
 
-
     public List<NotificationListItem> findAllNotificationItems() {
+
         List<NotificationListItem> items = new ArrayList<>();
-        for (Notification n : notificationRepository.findAll()) {
-            items.add(new NotificationListItem(
-                    n.getId(),
-                    findEmailSubjectByNotificationId(n.getId()),
-                    n.getCreatedAt()
-            ));
+
+        for (Notification notification : notificationRepository.findAll()) {
+            items.add(new NotificationListItem(notification.getId(), findEmailSubjectByNotificationId(notification.getId()), notification.getCreatedAt()));
         }
+
         return items;
     }
 
@@ -171,32 +225,41 @@ public class NotificationService {
             throw new IllegalArgumentException("This delivery is not an email.");
         }
 
-        EmailDetails emailDetails = emailDetailsRepository
-                .findByDeliveryId(deliveryId).orElseThrow(() ->
-                        new IllegalArgumentException("Email details not found for delivery: " + deliveryId));
+        EmailDetails emailDetails = emailDetailsRepository.findByDeliveryId(deliveryId)
+                .orElseThrow(() -> new IllegalArgumentException("Email details not found for delivery: " + deliveryId));
 
         return new EmailDetailsDto(delivery.getId(), emailDetails.getSubject(), delivery.getNotification().getContent(),
-                new ArrayList<>(emailDetails.getRecipients())
-        );
+                new ArrayList<>(emailDetails.getRecipients()));
     }
 
     @Transactional
     public NotificationDelivery sendEmailDeliveryForNotification(Long notificationId) {
 
         Notification notification = notificationRepository.findById(notificationId)
-                .orElseThrow(() ->
-                        new IllegalArgumentException(
-                                "Notification not found: " + notificationId));
+                .orElseThrow(() -> new IllegalArgumentException("Notification not found: " + notificationId));
 
         NotificationDelivery delivery = deliveryRepository
-                .findByNotificationId(notification.getId())
-                .stream()
-                .filter(d -> d.getType() == NotificationType.EMAIL)
-                .findFirst()
-                .orElseThrow(() ->
-                        new IllegalArgumentException(
-                                "Email delivery not found for notification: " + notificationId));
+                .findByNotificationId(notification.getId()).stream()
+                .filter(d -> d.getType() == NotificationType.EMAIL).findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Email delivery not found for notification: " + notificationId));
 
         return sendDelivery(delivery.getId());
     }
+
+
+    public List<NotificationListItem> findNotificationItems(
+            List<Notification> notifications) {
+
+        List<NotificationListItem> items = new ArrayList<>();
+
+        for (Notification notification : notifications) {
+            items.add(new NotificationListItem(
+                    notification.getId(),
+                    findEmailSubjectByNotificationId(notification.getId()),
+                    notification.getCreatedAt()));
+        }
+
+        return items;
+    }
+
 }

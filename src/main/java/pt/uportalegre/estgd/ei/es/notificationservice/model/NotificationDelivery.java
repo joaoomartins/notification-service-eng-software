@@ -1,3 +1,4 @@
+
 package pt.uportalegre.estgd.ei.es.notificationservice.model;
 
 import jakarta.persistence.*;
@@ -26,16 +27,35 @@ public class NotificationDelivery {
     @Column(nullable = false)
     private NotificationStatus status;
 
+    @Column(nullable = false)
+    private int maxAttempts;
+
+    @Column(nullable = false)
+    private int attemptCount;
+
     private LocalDateTime sentAt;
 
     protected NotificationDelivery() {
-
     }
 
     public NotificationDelivery(Notification notification, NotificationType type) {
+        this(notification, type, 3);
+    }
+
+    public NotificationDelivery(
+            Notification notification,
+            NotificationType type,
+            int maxAttempts) {
+
+        if (maxAttempts < 1) {
+            throw new IllegalArgumentException("Max attempts must be at least 1.");
+        }
+
         this.notification = notification;
         this.type = type;
         this.status = NotificationStatus.PENDING;
+        this.maxAttempts = maxAttempts;
+        this.attemptCount = 0;
     }
 
     public Long getId() {
@@ -56,6 +76,22 @@ public class NotificationDelivery {
 
     public void setStatus(NotificationStatus status) {
         this.status = status;
+    }
+
+    public int getMaxAttempts() {
+        return maxAttempts;
+    }
+
+    public int getAttemptCount() {
+        return attemptCount;
+    }
+
+    public void incrementAttemptCount() {
+        if (attemptCount >= maxAttempts) {
+            throw new IllegalStateException("Max number of attempts has been reached.");
+        }
+
+        attemptCount++;
     }
 
     public LocalDateTime getSentAt() {

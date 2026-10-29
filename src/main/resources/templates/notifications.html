@@ -27,9 +27,9 @@
 
         <div class="text-muted small">
             <span th:if="${notificationPage.totalElements > 0}">
-                Existem
+                There are
                 <strong th:text="${notificationPage.totalElements}">18</strong>
-                notificações
+                notifications
             </span>
         </div>
 
@@ -41,7 +41,7 @@
 
             <label for="sizeSelect"
                    class="form-label small text-secondary mb-0 text-nowrap">
-                Por página:
+                Show per page:
             </label>
 
             <select id="sizeSelect"
@@ -92,20 +92,20 @@
             <table class="table table-striped table-hover align-middle mb-0">
 
                 <thead class="table-dark">
-                <tr>
-                    <th scope="col">ID</th>
-                    <th scope="col">Subject</th>
-                    <th scope="col">Created At</th>
-                    <th scope="col" class="text-center">Details</th>
-                </tr>
+                    <tr>
+                        <th scope="col">ID</th>
+                        <th scope="col">Subject</th>
+                        <th scope="col">Created At</th>
+                        <th scope="col" class="text-center">Details</th>
+                    </tr>
                 </thead>
 
                 <tbody>
-                <tr th:each="notification : ${notificationPage.content}">
+                <tr th:each="notification : ${notifications}">
 
                     <td th:text="${notification.id}">1</td>
 
-                    <td th:text="${@notificationService.findEmailSubjectByNotificationId(notification.id)}">
+                    <td th:text="${notification.subject}">
                         Example subject
                     </td>
 

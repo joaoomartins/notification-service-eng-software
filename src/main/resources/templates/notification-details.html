@@ -69,53 +69,34 @@
                         <th scope="col">Mechanism</th>
                         <th scope="col">Status</th>
                         <th scope="col">Sent Time</th>
-                        <th scope="col">Actions</th>
+                        <th scope="col">Details</th>
                     </tr>
                     </thead>
 
                     <tbody>
                     <tr th:each="delivery : ${deliveries}">
                         <td th:text="${delivery.id}"></td>
+
                         <td th:text="${delivery.type}"></td>
 
                         <td>
-                            <span class="badge"
-                                  th:classappend="${delivery.status.name() == 'SENT'} ? ' text-bg-success' :
-                                                  (${delivery.status.name() == 'FAILED'} ? ' text-bg-danger' : ' text-bg-warning')"
-                                  th:text="${delivery.status}">
-                            </span>
+        <span class="badge"
+              th:classappend="${delivery.status.name() == 'SENT'} ? ' text-bg-success' :
+                              (${delivery.status.name() == 'FAILED'} ? ' text-bg-danger' : ' text-bg-warning')"
+              th:text="${delivery.status}">
+        </span>
                         </td>
 
                         <td th:text="${delivery.sentAt != null ? #temporals.format(delivery.sentAt, 'dd/MM/yyyy HH:mm') : '-'}"></td>
 
                         <td>
-                            <div class="d-flex flex-wrap gap-2">
-
-                                <form th:if="${delivery.status.name() != 'SENT'}"
-                                      th:action="@{/deliveries/{id}/send(id=${delivery.id})}"
-                                      method="post">
-
-                                    <button type="submit"
-                                            class="btn btn-sm"
-                                            th:classappend="${delivery.status.name() == 'FAILED'} ? ' btn-warning' : ' btn-primary'"
-                                            th:text="${delivery.status.name() == 'FAILED' ? 'Resend' : 'Send'}">
-                                    </button>
-                                </form>
-
-                                <span th:if="${delivery.status.name() == 'SENT'}"
-                                      class="text-success small align-self-center">
-                                    Sent
-                                </span>
-
-                                <button type="button"
-                                        th:if="${delivery.type.name() == 'EMAIL'}"
-                                        class="btn btn-outline-primary btn-sm"
-                                        th:attr="data-delivery-id=${delivery.id}"
-                                        onclick="showEmailDetails(this.dataset.deliveryId)">
-                                    View Details
-                                </button>
-
-                            </div>
+                            <button type="button"
+                                    th:if="${delivery.type.name() == 'EMAIL'}"
+                                    class="btn btn-outline-primary btn-sm"
+                                    th:attr="data-delivery-id=${delivery.id}"
+                                    onclick="showEmailDetails(this.dataset.deliveryId)">
+                                View Details
+                            </button>
                         </td>
                     </tr>
                     </tbody>

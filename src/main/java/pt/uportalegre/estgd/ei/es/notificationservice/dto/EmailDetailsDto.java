@@ -1,6 +1,7 @@
 package pt.uportalegre.estgd.ei.es.notificationservice.dto;
 
 import pt.uportalegre.estgd.ei.es.notificationservice.model.EmailRecipient;
+import pt.uportalegre.estgd.ei.es.notificationservice.model.NotificationDelivery;
 
 import java.util.List;
 

@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="pt" xmlns:th="http://www.thymeleaf.org">
 <head>
@@ -5,22 +6,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Create Notification</title>
 
-    <link rel="icon" type="image/x-icon" th:href="@{/favicon.ico(v=1)}" />
-
-    <!-- Bootstrap CSS Local -->
+    <link rel="icon" type="image/x-icon" th:href="@{/favicon.ico(v=1)}">
     <link rel="stylesheet" th:href="@{/css/bootstrap.min.css}">
 </head>
 <body class="bg-light">
 
 <div class="container py-5">
-
     <div class="row justify-content-center">
         <div class="col-12 col-lg-8">
 
             <div class="mb-4">
                 <h1 class="h2">Create an Email Notification</h1>
                 <p class="text-secondary mb-0">
-                    Fill in the email details and choose whether to save or send the notification.
+                    Fill in the email details. The notification will be processed automatically.
                 </p>
             </div>
 
@@ -45,9 +43,7 @@
                         </div>
 
                         <div class="mb-3">
-                            <label for="cc" class="form-label">
-                                CC Recipients
-                            </label>
+                            <label for="cc" class="form-label">CC Recipients</label>
                             <input type="text"
                                    class="form-control"
                                    id="cc"
@@ -56,9 +52,7 @@
                         </div>
 
                         <div class="mb-3">
-                            <label for="bcc" class="form-label">
-                                BCC Recipients
-                            </label>
+                            <label for="bcc" class="form-label">BCC Recipients</label>
                             <input type="text"
                                    class="form-control"
                                    id="bcc"
@@ -77,7 +71,7 @@
                                    required>
                         </div>
 
-                        <div class="mb-4">
+                        <div class="mb-3">
                             <label for="content" class="form-label">
                                 Content <span class="text-danger">*</span>
                             </label>
@@ -89,19 +83,28 @@
                                       placeholder="Write your notification here..."></textarea>
                         </div>
 
-                        <div class="d-flex flex-wrap gap-2">
-                            <button type="submit"
-                                    class="btn btn-outline-primary"
-                                    name="action"
-                                    value="save">
-                                Save
-                            </button>
+                        <div class="mb-4">
+                            <label for="maxAttempts" class="form-label">
+                                Maximum delivery attempts
+                            </label>
+                            <select class="form-select"
+                                    id="maxAttempts"
+                                    name="maxAttempts"
+                                    required>
+                                <option value="1">1 attempt</option>
+                                <option value="3" selected>3 attempts</option>
+                                <option value="5">5 attempts</option>
+                                <option value="10">10 attempts</option>
+                            </select>
+                            <div class="form-text">
+                                Includes the initial attempt. Failed deliveries are retried automatically
+                                until this limit is reached.
+                            </div>
+                        </div>
 
-                            <button type="submit"
-                                    class="btn btn-primary"
-                                    name="action"
-                                    value="send">
-                                Save and Send
+                        <div class="d-flex flex-wrap gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                Create Notification
                             </button>
 
                             <a th:href="@{/notifications}"
@@ -117,7 +120,6 @@
 
         </div>
     </div>
-
 </div>
 
 </body>
