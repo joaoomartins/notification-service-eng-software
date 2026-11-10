@@ -8,6 +8,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
+import pt.uportalegre.estgd.ei.es.notificationservice.dto.DeliveryDetailsDto;
 import pt.uportalegre.estgd.ei.es.notificationservice.dto.EmailDetailsDto;
 import pt.uportalegre.estgd.ei.es.notificationservice.dto.EmailNotificationRequest;
 import pt.uportalegre.estgd.ei.es.notificationservice.model.Notification;
@@ -48,7 +49,7 @@ public class NotificationController {
             @RequestParam(required = false, defaultValue = "") String cc, @RequestParam(required = false, defaultValue = "") String bcc,
             @RequestParam(defaultValue = "3") int maxAttempts) {
 
-        Notification notification = notificationService.createEmailNotification(content, subject, to, cc, bcc, maxAttempts);
+        Notification notification = notificationService.createEmailNotificationFromStrings(content, subject, to, cc, bcc, maxAttempts);
 
         return "redirect:/notifications/" + notification.getId();
     }
@@ -58,7 +59,7 @@ public class NotificationController {
 
         model.addAttribute("notification", notificationService.findNotificationById(id));
 
-        model.addAttribute("deliveries", notificationService.findDeliveriesByNotificationId(id));
+        model.addAttribute("deliveries", notificationService.findDeliveryDetailsByNotificationId(id));
 
         return "notification-details";
     }
@@ -68,5 +69,13 @@ public class NotificationController {
     public EmailDetailsDto getDeliveryDetails(@PathVariable Long deliveryId) {
 
         return notificationService.findEmailDetailsByDeliveryId(deliveryId);
+    }
+
+    @GetMapping("/deliveries/{deliveryId}/processing-details")
+    @ResponseBody
+    public DeliveryDetailsDto getProcessingDetails(
+            @PathVariable Long deliveryId) {
+
+        return notificationService.findDeliveryDetailsById(deliveryId);
     }
 }

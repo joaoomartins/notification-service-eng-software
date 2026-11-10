@@ -1,5 +1,5 @@
 
-package pt.uportalegre.estgd.ei.es.notificationservice.service;
+package pt.uportalegre.estgd.ei.es.notificationservice.worker;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import pt.uportalegre.estgd.ei.es.notificationservice.model.NotificationDelivery;
 import pt.uportalegre.estgd.ei.es.notificationservice.model.enums.NotificationStatus;
 import pt.uportalegre.estgd.ei.es.notificationservice.repository.NotificationDeliveryRepository;
+import pt.uportalegre.estgd.ei.es.notificationservice.service.NotificationService;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -43,7 +44,7 @@ public class BackgroundWorker implements Runnable {
         workerThread.setDaemon(false);
         workerThread.start();
 
-        logger.info("BackgroundWorker iniciado.");
+        logger.info("BackgroundWorker started.");
     }
 
     @PreDestroy
@@ -60,7 +61,7 @@ public class BackgroundWorker implements Runnable {
             }
         }
 
-        logger.info("BackgroundWorker parado.");
+        logger.info("BackgroundWorker stoped.");
     }
 
     @Override
@@ -74,7 +75,7 @@ public class BackgroundWorker implements Runnable {
                 break;
 
             } catch (Exception exception) {
-                logger.error("Erro durante o ciclo do BackgroundWorker.", exception);
+                logger.error("Error while BackgroundWorker cycle.", exception);
 
                 try {
                     Thread.sleep(POLLING_INTERVAL_MS);
@@ -94,12 +95,12 @@ public class BackgroundWorker implements Runnable {
             }
 
             try {
-                logger.info("A processar entrega {}. Tentativa {}/{}.", delivery.getId(), delivery.getAttemptCount() + 1, delivery.getMaxAttempts());
+                logger.info("Processing delivery {}. Attempt {}/{}.", delivery.getId(), delivery.getAttemptCount() + 1, delivery.getMaxAttempts());
 
                 notificationService.sendDelivery(delivery.getId());
 
             } catch (Exception exception) {
-                logger.error("Erro ao processar a entrega {}.", delivery.getId(), exception);
+                logger.error("Error processing delivery {}.", delivery.getId(), exception);
             }
         }
     }

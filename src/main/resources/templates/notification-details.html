@@ -46,6 +46,7 @@
         </div>
     </div>
 
+
     <!-- Deliveries -->
     <div class="card shadow-sm">
         <div class="card-header bg-white">
@@ -65,11 +66,12 @@
                 <table class="table table-striped table-hover align-middle mb-0">
                     <thead class="table-dark">
                     <tr>
-                        <th scope="col">Delivery ID</th>
-                        <th scope="col">Mechanism</th>
-                        <th scope="col">Status</th>
-                        <th scope="col">Sent Time</th>
-                        <th scope="col">Details</th>
+                        <th>Delivery ID</th>
+                        <th>Mechanism</th>
+                        <th>Status</th>
+                        <th>Attempts</th>
+                        <th>Sent Time</th>
+                        <th>Details</th>
                     </tr>
                     </thead>
 
@@ -80,23 +82,40 @@
                         <td th:text="${delivery.type}"></td>
 
                         <td>
-        <span class="badge"
-              th:classappend="${delivery.status.name() == 'SENT'} ? ' text-bg-success' :
-                              (${delivery.status.name() == 'FAILED'} ? ' text-bg-danger' : ' text-bg-warning')"
-              th:text="${delivery.status}">
-        </span>
+                        <span class="badge"
+                              th:classappend="${delivery.status.name() == 'SENT'} ? ' text-bg-success' :
+                                  (${delivery.status.name() == 'FAILED'} ? ' text-bg-danger' : ' text-bg-warning')"
+                              th:text="${delivery.status}">
+                        </span>
                         </td>
 
-                        <td th:text="${delivery.sentAt != null ? #temporals.format(delivery.sentAt, 'dd/MM/yyyy HH:mm') : '-'}"></td>
+                        <td>
+                            <span th:text="${delivery.attemptCount + ' / ' + delivery.maxAttempts}"></span>
+                        </td>
+
+                        <td th:text="${delivery.sentAt != null
+                        ? #temporals.format(delivery.sentAt, 'dd/MM/yyyy HH:mm')
+                        : '-'}"></td>
 
                         <td>
-                            <button type="button"
-                                    th:if="${delivery.type.name() == 'EMAIL'}"
-                                    class="btn btn-outline-primary btn-sm"
-                                    th:attr="data-delivery-id=${delivery.id}"
-                                    onclick="showEmailDetails(this.dataset.deliveryId)">
-                                View Details
-                            </button>
+                            <div class="d-flex flex-wrap gap-2">
+
+                                <button type="button"
+                                        th:if="${delivery.type.name() == 'EMAIL'}"
+                                        class="btn btn-outline-primary btn-sm"
+                                        th:attr="data-delivery-id=${delivery.id}"
+                                        onclick="showEmailDetails(this.dataset.deliveryId)">
+                                    View Email
+                                </button>
+
+                                <button type="button"
+                                        class="btn btn-outline-secondary btn-sm"
+                                        th:attr="data-delivery-id=${delivery.id}"
+                                        onclick="showProcessingDetails(this.dataset.deliveryId)">
+                                    View Processing Details
+                                </button>
+
+                            </div>
                         </td>
                     </tr>
                     </tbody>
@@ -105,6 +124,84 @@
             </div>
         </div>
     </div>
+
+    <!-- Processing details modal -->
+    <div class="modal fade"
+         id="processingDetailsModal"
+         tabindex="-1"
+         aria-labelledby="processingDetailsModalLabel"
+         aria-hidden="true">
+
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+
+                <div class="modal-header">
+                    <h2 class="modal-title fs-5" id="processingDetailsModalLabel">
+                        Processing Details
+                    </h2>
+
+                    <button type="button"
+                            class="btn-close"
+                            data-bs-dismiss="modal"
+                            aria-label="Close">
+                    </button>
+                </div>
+
+                <div class="modal-body">
+
+                    <h3 class="h6">Current Status</h3>
+
+                    <dl class="row">
+                        <dt class="col-sm-4">Delivery ID</dt>
+                        <dd class="col-sm-8" id="processingDeliveryId"></dd>
+
+                        <dt class="col-sm-4">Status</dt>
+                        <dd class="col-sm-8">
+                            <span id="processingStatus" class="badge"></span>
+                        </dd>
+
+                        <dt class="col-sm-4">Attempts</dt>
+                        <dd class="col-sm-8" id="processingAttempts"></dd>
+
+                        <dt class="col-sm-4">Sent Time</dt>
+                        <dd class="col-sm-8" id="processingSentAt"></dd>
+                    </dl>
+
+                    <div id="processingErrorContainer"
+                         class="alert alert-danger d-none">
+                        <strong>Last error</strong>
+                        <p id="processingError" class="mb-0 mt-1 text-break"></p>
+                    </div>
+
+                    <hr>
+
+                    <h3 class="h6">Processing History</h3>
+
+                    <div id="processingNoAttempts"
+                         class="alert alert-info d-none">
+                        No attempts have been recorded yet.
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover align-middle">
+                            <thead class="table-dark">
+                            <tr>
+                                <th>Attempt</th>
+                                <th>Date</th>
+                                <th>Result</th>
+                                <th>Error</th>
+                            </tr>
+                            </thead>
+
+                            <tbody id="processingHistoryBody"></tbody>
+                        </table>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
 
 </div>
 
@@ -202,6 +299,105 @@
 
         } catch (error) {
             alert("An error occurred while loading the email details.");
+            console.error(error);
+        }
+    }
+
+    async function showProcessingDetails(deliveryId) {
+        try {
+            const response = await fetch(
+                `/deliveries/${deliveryId}/processing-details`
+            );
+
+            if (!response.ok) {
+                alert("Could not load the processing details.");
+                return;
+            }
+
+            const delivery = await response.json();
+
+            document.getElementById("processingDeliveryId").textContent =
+                delivery.id;
+
+            const statusElement = document.getElementById("processingStatus");
+            statusElement.textContent = delivery.status;
+            statusElement.className = "badge";
+
+            if (delivery.status === "SENT") {
+                statusElement.classList.add("text-bg-success");
+            } else if (delivery.status === "FAILED") {
+                statusElement.classList.add("text-bg-danger");
+            } else {
+                statusElement.classList.add("text-bg-warning");
+            }
+
+            document.getElementById("processingAttempts").textContent =
+                `${delivery.attemptCount} / ${delivery.maxAttempts}`;
+
+            document.getElementById("processingSentAt").textContent =
+                delivery.sentAt
+                    ? new Date(delivery.sentAt).toLocaleString("pt-PT")
+                    : "-";
+
+            const errorContainer =
+                document.getElementById("processingErrorContainer");
+
+            const errorElement = document.getElementById("processingError");
+
+            if (delivery.status === "FAILED") {
+                errorElement.textContent =
+                    delivery.lastErrorMessage || "No error details available.";
+
+                errorContainer.classList.remove("d-none");
+            } else {
+                errorElement.textContent = "";
+                errorContainer.classList.add("d-none");
+            }
+
+            const historyBody =
+                document.getElementById("processingHistoryBody");
+
+            historyBody.replaceChildren();
+
+            const attempts = delivery.attempts ?? [];
+
+            document.getElementById("processingNoAttempts")
+                .classList.toggle("d-none", attempts.length > 0);
+
+            for (const attempt of attempts) {
+                const row = document.createElement("tr");
+
+                const numberCell = document.createElement("td");
+                numberCell.textContent = attempt.attemptNumber;
+
+                const dateCell = document.createElement("td");
+                dateCell.textContent = attempt.attemptedAt
+                    ? new Date(attempt.attemptedAt).toLocaleString("pt-PT")
+                    : "-";
+
+                const resultCell = document.createElement("td");
+                const badge = document.createElement("span");
+                badge.className = "badge " +
+                    (attempt.result === "SUCCESS"
+                        ? "text-bg-success"
+                        : "text-bg-danger");
+                badge.textContent = attempt.result;
+                resultCell.appendChild(badge);
+
+                const errorCell = document.createElement("td");
+                errorCell.className = "text-break";
+                errorCell.textContent = attempt.errorMessage || "-";
+
+                row.append(numberCell, dateCell, resultCell, errorCell);
+                historyBody.appendChild(row);
+            }
+
+            bootstrap.Modal.getOrCreateInstance(
+                document.getElementById("processingDetailsModal")
+            ).show();
+
+        } catch (error) {
+            alert("An error occurred while loading the processing details.");
             console.error(error);
         }
     }

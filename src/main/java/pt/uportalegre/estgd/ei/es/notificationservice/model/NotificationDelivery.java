@@ -42,10 +42,7 @@ public class NotificationDelivery {
         this(notification, type, 3);
     }
 
-    public NotificationDelivery(
-            Notification notification,
-            NotificationType type,
-            int maxAttempts) {
+    public NotificationDelivery(Notification notification, NotificationType type, int maxAttempts) {
 
         if (maxAttempts < 1) {
             throw new IllegalArgumentException("Max attempts must be at least 1.");

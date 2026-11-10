@@ -7,6 +7,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.mail.MailException;
 import org.springframework.stereotype.Service;
 
+import pt.uportalegre.estgd.ei.es.notificationservice.dto.DeliveryAttemptDto;
+import pt.uportalegre.estgd.ei.es.notificationservice.dto.DeliveryDetailsDto;
 import pt.uportalegre.estgd.ei.es.notificationservice.dto.EmailDetailsDto;
 import pt.uportalegre.estgd.ei.es.notificationservice.dto.NotificationListItem;
 import pt.uportalegre.estgd.ei.es.notificationservice.model.*;
@@ -43,10 +45,6 @@ public class NotificationService {
         this.senders = senders;
     }
 
-    public List<Notification> findAllNotifications() {
-        return notificationRepository.findAll();
-    }
-
     public Page<Notification> findPaginated(Pageable pageable) {
         return notificationRepository.findAll(pageable);
     }
@@ -60,12 +58,6 @@ public class NotificationService {
         return deliveryRepository.findByNotificationId(notificationId);
     }
 
-    // Creates a notification with the default limit of 3 attempts.
-    @Transactional
-    public Notification createEmailNotification(String content, String subject, List<EmailRecipient> recipients) {
-        return createEmailNotification(content, subject, recipients, 3);
-    }
-
     // Creates a notification with a configurable attempt limit.
     @Transactional
     public Notification createEmailNotification(String content, String subject, List<EmailRecipient> recipients, int maxAttempts) {
@@ -75,7 +67,8 @@ public class NotificationService {
         }
 
         if (recipients == null || recipients.stream().noneMatch(
-                recipient -> recipient.getRecipientType() == EmailRecipientType.TO)) {throw new IllegalArgumentException("At least one TO recipient is required.");
+                recipient -> recipient.getRecipientType() == EmailRecipientType.TO)) {
+            throw new IllegalArgumentException("At least one TO recipient is required.");
         }
 
         Notification notification = new Notification(content);
@@ -96,14 +89,8 @@ public class NotificationService {
         return notification;
     }
 
-    // Accepts recipient addresses separated by commas or semicolons.
     @Transactional
-    public Notification createEmailNotification(String content, String subject, String to, String cc, String bcc) {
-        return createEmailNotification(content, subject, to, cc, bcc, 3);
-    }
-
-    @Transactional
-    public Notification createEmailNotification(String content, String subject, String to, String cc, String bcc, int maxAttempts) {
+    public Notification createEmailNotificationFromStrings(String content, String subject, String to, String cc, String bcc, int maxAttempts) {
 
         List<EmailRecipient> recipients = new ArrayList<>();
 
@@ -112,7 +99,8 @@ public class NotificationService {
         recipients.addAll(parseRecipients(bcc, EmailRecipientType.BCC));
 
         if (recipients.stream().noneMatch(
-                recipient -> recipient.getRecipientType() == EmailRecipientType.TO)) {throw new IllegalArgumentException("At least one TO recipient is required.");
+                recipient -> recipient.getRecipientType() == EmailRecipientType.TO)) {
+            throw new IllegalArgumentException("At least one TO recipient is required.");
         }
 
         return createEmailNotification(content, subject, recipients, maxAttempts);
@@ -247,8 +235,7 @@ public class NotificationService {
     }
 
 
-    public List<NotificationListItem> findNotificationItems(
-            List<Notification> notifications) {
+    public List<NotificationListItem> findNotificationItems(List<Notification> notifications) {
 
         List<NotificationListItem> items = new ArrayList<>();
 
@@ -262,4 +249,53 @@ public class NotificationService {
         return items;
     }
 
+    @Transactional
+    public List<DeliveryDetailsDto> findDeliveryDetailsByNotificationId(
+            Long notificationId) {
+
+        findNotificationById(notificationId);
+
+        return deliveryRepository.findByNotificationId(notificationId)
+                .stream()
+                .map(this::toDeliveryDetailsDto)
+                .toList();
+    }
+
+    @Transactional
+    public DeliveryDetailsDto findDeliveryDetailsById(Long deliveryId) {
+
+        NotificationDelivery delivery = deliveryRepository.findById(deliveryId)
+                .orElseThrow(() ->
+                        new IllegalArgumentException("Delivery not found: " + deliveryId));
+
+        return toDeliveryDetailsDto(delivery);
+    }
+
+    private DeliveryDetailsDto toDeliveryDetailsDto(NotificationDelivery delivery) {
+
+        List<DeliveryAttempt> attempts =
+                attemptRepository.findByDeliveryIdOrderByAttemptNumberAsc(delivery.getId());
+
+        List<DeliveryAttemptDto> attemptDtos = attempts.stream()
+                .map(attempt -> new DeliveryAttemptDto(
+                        attempt.getAttemptNumber(),
+                        attempt.getAttemptedAt(),
+                        attempt.getResult(),
+                        attempt.getErrorMessage()))
+                .toList();
+
+        String lastErrorMessage = attempts.isEmpty()
+                ? null
+                : attempts.get(attempts.size() - 1).getErrorMessage();
+
+        return new DeliveryDetailsDto(
+                delivery.getId(),
+                delivery.getType(),
+                delivery.getStatus(),
+                delivery.getAttemptCount(),
+                delivery.getMaxAttempts(),
+                delivery.getSentAt(),
+                lastErrorMessage,
+                attemptDtos);
+    }
 }
