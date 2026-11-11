@@ -46,10 +46,9 @@ public class NotificationController {
 
     @PostMapping("/notifications")
     public String createNotification(@RequestParam String content, @RequestParam String subject, @RequestParam String to,
-            @RequestParam(required = false, defaultValue = "") String cc, @RequestParam(required = false, defaultValue = "") String bcc,
-            @RequestParam(defaultValue = "3") int maxAttempts) {
+            @RequestParam(required = false, defaultValue = "") String cc, @RequestParam(required = false, defaultValue = "") String bcc) {
 
-        Notification notification = notificationService.createEmailNotificationFromStrings(content, subject, to, cc, bcc, maxAttempts);
+        Notification notification = notificationService.createEmailNotificationFromStrings(content, subject, to, cc, bcc);
 
         return "redirect:/notifications/" + notification.getId();
     }

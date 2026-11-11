@@ -2,9 +2,9 @@
 package pt.uportalegre.estgd.ei.es.notificationservice.service;
 
 import jakarta.transaction.Transactional;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.mail.MailException;
 import org.springframework.stereotype.Service;
 
 import pt.uportalegre.estgd.ei.es.notificationservice.dto.DeliveryAttemptDto;
@@ -34,15 +34,23 @@ public class NotificationService {
     private final EmailDetailsRepository emailDetailsRepository;
     private final DeliveryAttemptRepository attemptRepository;
     private final List<NotificationSender> senders;
+    private final int maxAttempts;
 
     public NotificationService(NotificationRepository notificationRepository, NotificationDeliveryRepository deliveryRepository, EmailDetailsRepository emailDetailsRepository,
-            DeliveryAttemptRepository attemptRepository, List<NotificationSender> senders) {
+            DeliveryAttemptRepository attemptRepository, List<NotificationSender> senders,
+            @Value("${notifications.delivery.max-attempts:3}") int maxAttempts) {
+
+        // Read from application.properties (notifications.delivery.max-attempts).
+        if (maxAttempts < 1) {
+            throw new IllegalArgumentException("notifications.delivery.max-attempts must be at least 1.");
+        }
 
         this.notificationRepository = notificationRepository;
         this.deliveryRepository = deliveryRepository;
         this.emailDetailsRepository = emailDetailsRepository;
         this.attemptRepository = attemptRepository;
         this.senders = senders;
+        this.maxAttempts = maxAttempts;
     }
 
     public Page<Notification> findPaginated(Pageable pageable) {
@@ -58,13 +66,12 @@ public class NotificationService {
         return deliveryRepository.findByNotificationId(notificationId);
     }
 
-    // Creates a notification with a configurable attempt limit.
+    // Creates a notification and its email delivery (status PENDING).
+    // The email is NOT sent here: the BackgroundWorker sends it later,
+    // so the user does not have to wait on the page.
+    // The attempt limit comes from application.properties, not from the user.
     @Transactional
-    public Notification createEmailNotification(String content, String subject, List<EmailRecipient> recipients, int maxAttempts) {
-
-        if (maxAttempts < 1) {
-            throw new IllegalArgumentException("Maximum attempts must be at least 1.");
-        }
+    public Notification createEmailNotification(String content, String subject, List<EmailRecipient> recipients) {
 
         if (recipients == null || recipients.stream().noneMatch(
                 recipient -> recipient.getRecipientType() == EmailRecipientType.TO)) {
@@ -77,7 +84,7 @@ public class NotificationService {
         NotificationDelivery delivery = new NotificationDelivery(
                 notification,
                 NotificationType.EMAIL,
-                maxAttempts);
+                this.maxAttempts);
 
         delivery = deliveryRepository.save(delivery);
 
@@ -90,7 +97,7 @@ public class NotificationService {
     }
 
     @Transactional
-    public Notification createEmailNotificationFromStrings(String content, String subject, String to, String cc, String bcc, int maxAttempts) {
+    public Notification createEmailNotificationFromStrings(String content, String subject, String to, String cc, String bcc) {
 
         List<EmailRecipient> recipients = new ArrayList<>();
 
@@ -98,64 +105,72 @@ public class NotificationService {
         recipients.addAll(parseRecipients(cc, EmailRecipientType.CC));
         recipients.addAll(parseRecipients(bcc, EmailRecipientType.BCC));
 
-        if (recipients.stream().noneMatch(
-                recipient -> recipient.getRecipientType() == EmailRecipientType.TO)) {
-            throw new IllegalArgumentException("At least one TO recipient is required.");
-        }
-
-        return createEmailNotification(content, subject, recipients, maxAttempts);
+        // The "at least one TO" rule is validated once, in createEmailNotification.
+        return createEmailNotification(content, subject, recipients);
     }
 
-    // Called by the background worker to process one delivery.
+    // Called by the background worker to process one delivery (one attempt per call).
     @Transactional
     public NotificationDelivery sendDelivery(Long deliveryId) {
 
         NotificationDelivery delivery = deliveryRepository.findById(deliveryId)
                 .orElseThrow(() -> new IllegalArgumentException("Delivery not found: " + deliveryId));
 
-        // A successful delivery must never be sent again automatically.
-        if (delivery.getStatus() == NotificationStatus.SENT) {
+        // Only PENDING deliveries are processed.
+        // SENT must never be sent again and FAILED is a final state.
+        if (delivery.getStatus() != NotificationStatus.PENDING) {
             return delivery;
         }
 
-        // Do not exceed the configured attempt limit.
+        // Safety check: never go over the attempt limit.
         if (delivery.getAttemptCount() >= delivery.getMaxAttempts()) {
             delivery.setStatus(NotificationStatus.FAILED);
             return deliveryRepository.save(delivery);
         }
 
-        NotificationSender sender = senders.stream()
-                .filter(s -> s.supports(delivery.getType())).findFirst()
-                .orElseThrow(() -> new IllegalStateException("No sender available for type: " + delivery.getType()));
-
-        // Count this attempt before invoking the sender.
+        // Count this attempt BEFORE calling the sender.
         delivery.incrementAttemptCount();
         int attemptNumber = delivery.getAttemptCount();
 
         try {
+            NotificationSender sender = findSender(delivery);
             sender.send(delivery);
 
+            // The email was sent: mark the delivery as SENT and save a successful attempt.
             delivery.setStatus(NotificationStatus.SENT);
             delivery.setSentAt(LocalDateTime.now());
 
-            DeliveryAttempt attempt = new DeliveryAttempt(delivery, attemptNumber, DeliveryAttemptResult.SUCCESS, null);
+            attemptRepository.save(new DeliveryAttempt(delivery, attemptNumber, DeliveryAttemptResult.SUCCESS, null));
 
-            attemptRepository.save(attempt);
-
-        } catch (MailException exception) {
+        } catch (Exception exception) {
+            // We catch ANY exception, not only mail exceptions.
+            // If an exception left this method, the transaction would be rolled back:
+            // the attempt would not be saved and the worker would retry forever.
 
             delivery.setSentAt(null);
 
-            boolean attemptsExhausted = delivery.getAttemptCount() >= delivery.getMaxAttempts();
+            // If there are attempts left, keep it PENDING so the worker tries again.
+            // Otherwise, the delivery has FAILED for good.
+            if (delivery.getAttemptCount() >= delivery.getMaxAttempts()) {
+                delivery.setStatus(NotificationStatus.FAILED);
+            } else {
+                delivery.setStatus(NotificationStatus.PENDING);
+            }
 
-            delivery.setStatus(attemptsExhausted ? NotificationStatus.FAILED : NotificationStatus.PENDING);
-
-            DeliveryAttempt attempt = new DeliveryAttempt(delivery, attemptNumber, DeliveryAttemptResult.FAILURE, exception.getMessage());
-
-            attemptRepository.save(attempt);
+            attemptRepository.save(new DeliveryAttempt(delivery, attemptNumber, DeliveryAttemptResult.FAILURE, exception.getMessage()));
         }
 
         return deliveryRepository.save(delivery);
+    }
+
+    // Finds the sender that knows how to deliver this type (e.g. EMAIL).
+    private NotificationSender findSender(NotificationDelivery delivery) {
+        for (NotificationSender sender : senders) {
+            if (sender.supports(delivery.getType())) {
+                return sender;
+            }
+        }
+        throw new IllegalStateException("No sender available for type: " + delivery.getType());
     }
 
     public List<EmailRecipient> parseRecipients(
