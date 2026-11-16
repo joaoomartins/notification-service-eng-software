@@ -1,10 +1,9 @@
-
 package pt.uportalegre.estgd.ei.es.notificationservice.worker;
 
-import jakarta.annotation.PostConstruct;
-import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import pt.uportalegre.estgd.ei.es.notificationservice.model.NotificationDelivery;
@@ -13,89 +12,34 @@ import pt.uportalegre.estgd.ei.es.notificationservice.repository.NotificationDel
 import pt.uportalegre.estgd.ei.es.notificationservice.service.NotificationService;
 
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * Periodically picks up pending deliveries and asks the service to process them.
+ * The worker only decides WHEN to process; the service decides WHAT happens to each delivery.
+ */
 @Component
-public class BackgroundWorker implements Runnable {
+@ConditionalOnProperty(name = "notifications.worker.enabled", havingValue = "true", matchIfMissing = true)
+public class BackgroundWorker {
 
     private static final Logger logger = LoggerFactory.getLogger(BackgroundWorker.class);
 
-    private static final long POLLING_INTERVAL_MS = 10000;
-
     private final NotificationDeliveryRepository deliveryRepository;
     private final NotificationService notificationService;
-
-    private final AtomicBoolean running = new AtomicBoolean(false);
-
-    private Thread workerThread;
 
     public BackgroundWorker(NotificationDeliveryRepository deliveryRepository, NotificationService notificationService) {
         this.deliveryRepository = deliveryRepository;
         this.notificationService = notificationService;
     }
 
-    @PostConstruct
-    public void start() {
-        if (!running.compareAndSet(false, true)) {
-            return;
-        }
-
-        workerThread = new Thread(this, "NotificationBackgroundWorker");
-        workerThread.setDaemon(false);
-        workerThread.start();
-
-        logger.info("BackgroundWorker started.");
-    }
-
-    @PreDestroy
-    public void stop() {
-        running.set(false);
-
-        if (workerThread != null) {
-            workerThread.interrupt();
-
-            try {
-                workerThread.join(2000);
-            } catch (InterruptedException exception) {
-                Thread.currentThread().interrupt();
-            }
-        }
-
-        logger.info("BackgroundWorker stoped.");
-    }
-
-    @Override
-    public void run() {
-        while (running.get()) {
-            try {
-                processPendingDeliveries();
-                Thread.sleep(POLLING_INTERVAL_MS);
-
-            } catch (InterruptedException exception) {
-                break;
-
-            } catch (Exception exception) {
-                logger.error("Error while BackgroundWorker cycle.", exception);
-
-                try {
-                    Thread.sleep(POLLING_INTERVAL_MS);
-                } catch (InterruptedException interruptedException) {
-                    break;
-                }
-            }
-        }
-    }
-
-    private void processPendingDeliveries() {
+    // fixedDelay: the next cycle only starts after the previous one finishes, so cycles never overlap.
+    @Scheduled(fixedDelayString = "${notifications.worker.polling-interval-ms:10000}")
+    public void processPendingDeliveries() {
         List<NotificationDelivery> deliveries = deliveryRepository.findEligibleDeliveries(NotificationStatus.PENDING);
 
         for (NotificationDelivery delivery : deliveries) {
-            if (!running.get()) {
-                break;
-            }
-
             try {
-                logger.info("Processing delivery {}. Attempt {}/{}.", delivery.getId(), delivery.getAttemptCount() + 1, delivery.getMaxAttempts());
+                logger.info("Processing delivery {}. Attempt {}/{}.",
+                        delivery.getId(), delivery.getAttemptCount() + 1, delivery.getMaxAttempts());
 
                 notificationService.sendDelivery(delivery.getId());
 

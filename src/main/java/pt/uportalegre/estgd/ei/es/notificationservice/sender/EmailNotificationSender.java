@@ -1,5 +1,6 @@
 package pt.uportalegre.estgd.ei.es.notificationservice.sender;
 
+import org.springframework.context.annotation.Profile;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Component;
@@ -10,7 +11,10 @@ import pt.uportalegre.estgd.ei.es.notificationservice.repository.EmailDetailsRep
 
 import java.util.List;
 
+// Real email sender (Gmail SMTP).
+// It is NOT used with the "simulation" profile: SimulatedEmailSender replaces it.
 @Component
+@Profile("!simulation")
 public class EmailNotificationSender implements NotificationSender {
 
     private final JavaMailSender mailSender;

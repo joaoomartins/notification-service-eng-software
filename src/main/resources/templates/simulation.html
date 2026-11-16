@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="pt" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Failure Simulation</title>
+
+    <link rel="icon" type="image/x-icon" th:href="@{/favicon.ico(v=1)}">
+    <link rel="stylesheet" th:href="@{/css/bootstrap.min.css}">
+</head>
+<body class="bg-light">
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-12 col-lg-8">
+
+            <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+                <h1 class="h2 mb-0">Failure Simulation</h1>
+
+                <a th:href="@{/notifications}" class="btn btn-outline-secondary">
+                    Back to List
+                </a>
+            </div>
+
+            <div class="alert alert-warning">
+                Simulation mode is active: no real emails are sent.
+            </div>
+
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-white">
+                    <h2 class="h5 mb-0">Current State</h2>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-5">Next attempts that will fail</dt>
+                        <dd class="col-sm-7" th:text="${failuresRemaining}"></dd>
+
+                        <dt class="col-sm-5">Always fail</dt>
+                        <dd class="col-sm-7" th:text="${alwaysFail} ? 'Yes' : 'No'"></dd>
+
+                        <dt class="col-sm-5">Simulated emails sent</dt>
+                        <dd class="col-sm-7" th:text="${sentCount}"></dd>
+                    </dl>
+                </div>
+            </div>
+
+            <div class="card shadow-sm">
+                <div class="card-header bg-white">
+                    <h2 class="h5 mb-0">Configure</h2>
+                </div>
+                <div class="card-body">
+                    <form th:action="@{/simulation}" method="post">
+
+                        <div class="mb-3">
+                            <label for="failures" class="form-label">Fail the next N attempts</label>
+                            <input type="number" min="0" class="form-control"
+                                   id="failures" name="failures" th:value="${failuresRemaining}">
+                            <div class="form-text">
+                                0 = every attempt succeeds. 1 = one failure followed by a success.
+                            </div>
+                        </div>
+
+                        <div class="form-check mb-4">
+                            <input class="form-check-input" type="checkbox"
+                                   id="alwaysFail" name="alwaysFail" value="true" th:checked="${alwaysFail}">
+                            <label class="form-check-label" for="alwaysFail">
+                                Always fail (deliveries reach the maximum number of attempts)
+                            </label>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary">Apply</button>
+                    </form>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+</body>
+</html>
