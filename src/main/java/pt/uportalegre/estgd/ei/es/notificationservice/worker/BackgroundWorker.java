@@ -1,7 +1,5 @@
 package pt.uportalegre.estgd.ei.es.notificationservice.worker;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -21,8 +19,6 @@ import java.util.List;
 @ConditionalOnProperty(name = "notifications.worker.enabled", havingValue = "true", matchIfMissing = true)
 public class BackgroundWorker {
 
-    private static final Logger logger = LoggerFactory.getLogger(BackgroundWorker.class);
-
     private final NotificationDeliveryRepository deliveryRepository;
     private final NotificationService notificationService;
 
@@ -38,13 +34,9 @@ public class BackgroundWorker {
 
         for (NotificationDelivery delivery : deliveries) {
             try {
-                logger.info("Processing delivery {}. Attempt {}/{}.",
-                        delivery.getId(), delivery.getAttemptCount() + 1, delivery.getMaxAttempts());
-
                 notificationService.sendDelivery(delivery.getId());
-
             } catch (Exception exception) {
-                logger.error("Error processing delivery {}.", delivery.getId(), exception);
+                System.err.println("Error processing delivery " + delivery.getId() + ": " + exception.getMessage());
             }
         }
     }
