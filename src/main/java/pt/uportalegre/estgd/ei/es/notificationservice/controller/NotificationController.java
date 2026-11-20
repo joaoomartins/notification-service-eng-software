@@ -1,4 +1,3 @@
-
 package pt.uportalegre.estgd.ei.es.notificationservice.controller;
 
 import org.springframework.data.domain.Page;
@@ -12,6 +11,7 @@ import pt.uportalegre.estgd.ei.es.notificationservice.dto.DeliveryDetailsDto;
 import pt.uportalegre.estgd.ei.es.notificationservice.dto.EmailDetailsDto;
 import pt.uportalegre.estgd.ei.es.notificationservice.dto.EmailNotificationRequest;
 import pt.uportalegre.estgd.ei.es.notificationservice.model.Notification;
+import pt.uportalegre.estgd.ei.es.notificationservice.model.enums.NotificationPriority;
 import pt.uportalegre.estgd.ei.es.notificationservice.service.NotificationService;
 
 @Controller
@@ -40,15 +40,17 @@ public class NotificationController {
     @GetMapping("/notifications/new")
     public String showCreateForm(Model model) {
         model.addAttribute("emailNotificationRequest", new EmailNotificationRequest());
+        model.addAttribute("priorities", NotificationPriority.values());
 
         return "notifications-form";
     }
 
     @PostMapping("/notifications")
     public String createNotification(@RequestParam String content, @RequestParam String subject, @RequestParam String to,
-            @RequestParam(required = false, defaultValue = "") String cc, @RequestParam(required = false, defaultValue = "") String bcc) {
+                                     @RequestParam(required = false, defaultValue = "") String cc, @RequestParam(required = false, defaultValue = "") String bcc,
+                                     @RequestParam(defaultValue = "NORMAL") NotificationPriority priority) {
 
-        Notification notification = notificationService.createEmailNotificationFromStrings(content, subject, to, cc, bcc);
+        Notification notification = notificationService.createEmailNotificationFromStrings(content, subject, to, cc, bcc, priority);
 
         return "redirect:/notifications/" + notification.getId();
     }

@@ -1,7 +1,7 @@
 package pt.uportalegre.estgd.ei.es.notificationservice.model;
 
 import jakarta.persistence.*;
-
+import pt.uportalegre.estgd.ei.es.notificationservice.model.enums.NotificationPriority;
 import java.time.LocalDateTime;
 
 @Entity
@@ -14,6 +14,10 @@ public class Notification {
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private NotificationPriority priority = NotificationPriority.NORMAL;
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -29,8 +33,9 @@ public class Notification {
 
     }
 
-    public Notification(String content) {
+    public Notification(String content, NotificationPriority priority) {
         this.content = content;
+        this.priority = priority;
     }
 
     public Long getId() {
@@ -39,6 +44,10 @@ public class Notification {
 
     public String getContent() {
         return content;
+    }
+
+    public NotificationPriority getPriority() {
+        return priority;
     }
 
     public void setContent(String content) {
