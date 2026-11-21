@@ -17,9 +17,15 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="h2 mb-0">Notifications</h1>
 
-        <a th:href="@{/notifications/new}" class="btn btn-primary">
-            Create Notification
-        </a>
+        <div class="d-flex gap-2">
+            <a th:href="@{/monitor}" class="btn btn-outline-secondary">
+                Monitor
+            </a>
+
+            <a th:href="@{/notifications/new}" class="btn btn-primary">
+                Create Notification
+            </a>
+        </div>
     </div>
 
     <!-- Total notifications and page size -->

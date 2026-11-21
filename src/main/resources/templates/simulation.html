@@ -38,6 +38,9 @@
                         <dt class="col-sm-5">Always fail</dt>
                         <dd class="col-sm-7" th:text="${alwaysFail} ? 'Yes' : 'No'"></dd>
 
+                        <dt class="col-sm-5">Delay per send (ms)</dt>
+                        <dd class="col-sm-7" th:text="${delayMs}"></dd>
+
                         <dt class="col-sm-5">Simulated emails sent</dt>
                         <dd class="col-sm-7" th:text="${sentCount}"></dd>
                     </dl>
@@ -57,6 +60,15 @@
                                    id="failures" name="failures" th:value="${failuresRemaining}">
                             <div class="form-text">
                                 0 = every attempt succeeds. 1 = one failure followed by a success.
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="delayMs" class="form-label">Delay per send (ms)</label>
+                            <input type="number" min="0" class="form-control"
+                                   id="delayMs" name="delayMs" th:value="${delayMs}">
+                            <div class="form-text">
+                                Makes each send slower, so deliveries stay in PROCESSING long enough to be seen in the monitor.
                             </div>
                         </div>
 
