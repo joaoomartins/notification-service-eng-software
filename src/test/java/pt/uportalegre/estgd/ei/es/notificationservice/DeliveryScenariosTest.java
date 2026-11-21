@@ -28,17 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-
-/**
- * Tests for the 4 delivery scenarios asked in Phase 2.
- *
- * - "test" profile: uses an in-memory H2 database and turns OFF the BackgroundWorker.
- * - "simulation" profile: uses SimulatedEmailSender, so no real email is sent.
- *
- * Because the worker is off, each test calls sendDelivery() by hand.
- * Each call is like one cycle of the worker (one attempt).
- * The attempt limit is 3 (see application-test.properties).
- */
+import pt.uportalegre.estgd.ei.es.notificationservice.model.enums.NotificationPriority;
 @SpringBootTest
 @ActiveProfiles({"test", "simulation"})
 class DeliveryScenariosTest {
@@ -176,8 +166,7 @@ class DeliveryScenariosTest {
     // Creates a notification (like the web form does) and returns the id of its delivery.
     private Long createDelivery() {
         Notification notification = notificationService.createEmailNotificationFromStrings(
-                "Test content", "Test subject", "to@test.pt", "", "");
-
+                "Test content", "Test subject", "to@test.pt", "", "", NotificationPriority.NORMAL);
         List<DeliveryDetailsDto> deliveries = notificationService.findDeliveryDetailsByNotificationId(notification.getId());
         return deliveries.get(0).getId();
     }

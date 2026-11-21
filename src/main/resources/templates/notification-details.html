@@ -42,6 +42,9 @@
                 <dt class="col-sm-3">Created At</dt>
                 <dd class="col-sm-9"
                     th:text="${#temporals.format(notification.createdAt, 'dd/MM/yyyy HH:mm')}"></dd>
+
+                <dt class="col-sm-3">Priority</dt>
+                <dd class="col-sm-9" th:text="${notification.priority}"></dd>
             </dl>
         </div>
     </div>

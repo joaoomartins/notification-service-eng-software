@@ -12,10 +12,7 @@ import pt.uportalegre.estgd.ei.es.notificationservice.dto.DeliveryDetailsDto;
 import pt.uportalegre.estgd.ei.es.notificationservice.dto.EmailDetailsDto;
 import pt.uportalegre.estgd.ei.es.notificationservice.dto.NotificationListItem;
 import pt.uportalegre.estgd.ei.es.notificationservice.model.*;
-import pt.uportalegre.estgd.ei.es.notificationservice.model.enums.DeliveryAttemptResult;
-import pt.uportalegre.estgd.ei.es.notificationservice.model.enums.EmailRecipientType;
-import pt.uportalegre.estgd.ei.es.notificationservice.model.enums.NotificationStatus;
-import pt.uportalegre.estgd.ei.es.notificationservice.model.enums.NotificationType;
+import pt.uportalegre.estgd.ei.es.notificationservice.model.enums.*;
 import pt.uportalegre.estgd.ei.es.notificationservice.repository.DeliveryAttemptRepository;
 import pt.uportalegre.estgd.ei.es.notificationservice.repository.EmailDetailsRepository;
 import pt.uportalegre.estgd.ei.es.notificationservice.repository.NotificationDeliveryRepository;
@@ -71,14 +68,14 @@ public class NotificationService {
     // so the user does not have to wait on the page.
     // The attempt limit comes from application.properties, not from the user.
     @Transactional
-    public Notification createEmailNotification(String content, String subject, List<EmailRecipient> recipients) {
+    public Notification createEmailNotification(String content, String subject, List<EmailRecipient> recipients, NotificationPriority priority) {
 
         if (recipients == null || recipients.stream().noneMatch(
                 recipient -> recipient.getRecipientType() == EmailRecipientType.TO)) {
             throw new IllegalArgumentException("At least one TO recipient is required.");
         }
 
-        Notification notification = new Notification(content);
+        Notification notification = new Notification(content, priority);
         notification = notificationRepository.save(notification);
 
         NotificationDelivery delivery = new NotificationDelivery(
@@ -97,7 +94,7 @@ public class NotificationService {
     }
 
     @Transactional
-    public Notification createEmailNotificationFromStrings(String content, String subject, String to, String cc, String bcc) {
+    public Notification createEmailNotificationFromStrings(String content, String subject, String to, String cc, String bcc, NotificationPriority priority) {
 
         List<EmailRecipient> recipients = new ArrayList<>();
 
@@ -106,7 +103,7 @@ public class NotificationService {
         recipients.addAll(parseRecipients(bcc, EmailRecipientType.BCC));
 
         // The "at least one TO" rule is validated once, in createEmailNotification.
-        return createEmailNotification(content, subject, recipients);
+        return createEmailNotification(content, subject, recipients, priority);
     }
 
     // Called by the background worker to process one delivery (one attempt per call).
