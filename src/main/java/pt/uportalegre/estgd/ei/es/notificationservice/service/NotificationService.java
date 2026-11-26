@@ -17,9 +17,7 @@ import pt.uportalegre.estgd.ei.es.notificationservice.repository.DeliveryAttempt
 import pt.uportalegre.estgd.ei.es.notificationservice.repository.EmailDetailsRepository;
 import pt.uportalegre.estgd.ei.es.notificationservice.repository.NotificationDeliveryRepository;
 import pt.uportalegre.estgd.ei.es.notificationservice.repository.NotificationRepository;
-import pt.uportalegre.estgd.ei.es.notificationservice.sender.NotificationSender;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -30,14 +28,13 @@ public class NotificationService {
     private final NotificationDeliveryRepository deliveryRepository;
     private final EmailDetailsRepository emailDetailsRepository;
     private final DeliveryAttemptRepository attemptRepository;
-    private final List<NotificationSender> senders;
+    private final DeliveryProcessor deliveryProcessor;
     private final int maxAttempts;
 
     public NotificationService(NotificationRepository notificationRepository, NotificationDeliveryRepository deliveryRepository, EmailDetailsRepository emailDetailsRepository,
-            DeliveryAttemptRepository attemptRepository, List<NotificationSender> senders,
+            DeliveryAttemptRepository attemptRepository, DeliveryProcessor deliveryProcessor,
             @Value("${notifications.delivery.max-attempts:3}") int maxAttempts) {
 
-        // Read from application.properties (notifications.delivery.max-attempts).
         if (maxAttempts < 1) {
             throw new IllegalArgumentException("notifications.delivery.max-attempts must be at least 1.");
         }
@@ -46,7 +43,7 @@ public class NotificationService {
         this.deliveryRepository = deliveryRepository;
         this.emailDetailsRepository = emailDetailsRepository;
         this.attemptRepository = attemptRepository;
-        this.senders = senders;
+        this.deliveryProcessor = deliveryProcessor;
         this.maxAttempts = maxAttempts;
     }
 
@@ -63,10 +60,6 @@ public class NotificationService {
         return deliveryRepository.findByNotificationId(notificationId);
     }
 
-    // Creates a notification and its email delivery (status PENDING).
-    // The email is NOT sent here: the BackgroundWorker sends it later,
-    // so the user does not have to wait on the page.
-    // The attempt limit comes from application.properties, not from the user.
     @Transactional
     public Notification createEmailNotification(String content, String subject, List<EmailRecipient> recipients, NotificationPriority priority) {
 
@@ -102,72 +95,22 @@ public class NotificationService {
         recipients.addAll(parseRecipients(cc, EmailRecipientType.CC));
         recipients.addAll(parseRecipients(bcc, EmailRecipientType.BCC));
 
-        // The "at least one TO" rule is validated once, in createEmailNotification.
         return createEmailNotification(content, subject, recipients, priority);
     }
 
-    // Called by the background worker to process one delivery (one attempt per call).
-    @Transactional
     public NotificationDelivery sendDelivery(Long deliveryId) {
 
-        NotificationDelivery delivery = deliveryRepository.findById(deliveryId)
+        deliveryRepository.findById(deliveryId)
                 .orElseThrow(() -> new IllegalArgumentException("Delivery not found: " + deliveryId));
 
-        // Only PENDING deliveries are processed.
-        // SENT must never be sent again and FAILED is a final state.
-        if (delivery.getStatus() != NotificationStatus.PENDING) {
-            return delivery;
+        String processorId = deliveryProcessor.currentProcessorId();
+
+        if (deliveryProcessor.claim(deliveryId, processorId)) {
+            deliveryProcessor.process(deliveryId, processorId);
         }
 
-        // Safety check: never go over the attempt limit.
-        if (delivery.getAttemptCount() >= delivery.getMaxAttempts()) {
-            delivery.setStatus(NotificationStatus.FAILED);
-            return deliveryRepository.save(delivery);
-        }
-
-        // Count this attempt BEFORE calling the sender.
-        delivery.incrementAttemptCount();
-        int attemptNumber = delivery.getAttemptCount();
-
-        try {
-            NotificationSender sender = findSender(delivery);
-            sender.send(delivery);
-
-            // The email was sent: mark the delivery as SENT and save a successful attempt.
-            delivery.setStatus(NotificationStatus.SENT);
-            delivery.setSentAt(LocalDateTime.now());
-
-            attemptRepository.save(new DeliveryAttempt(delivery, attemptNumber, DeliveryAttemptResult.SUCCESS, null));
-
-        } catch (Exception exception) {
-            // We catch ANY exception, not only mail exceptions.
-            // If an exception left this method, the transaction would be rolled back:
-            // the attempt would not be saved and the worker would retry forever.
-
-            delivery.setSentAt(null);
-
-            // If there are attempts left, keep it PENDING so the worker tries again.
-            // Otherwise, the delivery has FAILED for good.
-            if (delivery.getAttemptCount() >= delivery.getMaxAttempts()) {
-                delivery.setStatus(NotificationStatus.FAILED);
-            } else {
-                delivery.setStatus(NotificationStatus.PENDING);
-            }
-
-            attemptRepository.save(new DeliveryAttempt(delivery, attemptNumber, DeliveryAttemptResult.FAILURE, exception.getMessage()));
-        }
-
-        return deliveryRepository.save(delivery);
-    }
-
-    // Finds the sender that knows how to deliver this type (e.g. EMAIL).
-    private NotificationSender findSender(NotificationDelivery delivery) {
-        for (NotificationSender sender : senders) {
-            if (sender.supports(delivery.getType())) {
-                return sender;
-            }
-        }
-        throw new IllegalStateException("No sender available for type: " + delivery.getType());
+        return deliveryRepository.findById(deliveryId)
+                .orElseThrow(() -> new IllegalArgumentException("Delivery not found: " + deliveryId));
     }
 
     public List<EmailRecipient> parseRecipients(
@@ -232,7 +175,6 @@ public class NotificationService {
                 new ArrayList<>(emailDetails.getRecipients()));
     }
 
-    @Transactional
     public NotificationDelivery sendEmailDeliveryForNotification(Long notificationId) {
 
         Notification notification = notificationRepository.findById(notificationId)

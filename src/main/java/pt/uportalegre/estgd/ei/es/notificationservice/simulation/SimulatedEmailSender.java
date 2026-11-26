@@ -10,51 +10,33 @@ import pt.uportalegre.estgd.ei.es.notificationservice.model.NotificationDelivery
 import pt.uportalegre.estgd.ei.es.notificationservice.model.enums.NotificationType;
 import pt.uportalegre.estgd.ei.es.notificationservice.sender.NotificationSender;
 
-/**
- * Fake email sender, only active with the "simulation" profile.
- *
- * It implements the same NotificationSender interface as the real EmailNotificationSender,
- * so NotificationService does not know (and does not care) which one it is using.
- * No real email is sent. Instead, we can choose how many attempts should fail,
- * to test retries and the attempt limit.
- */
 @Component
 @Profile("simulation")
 public class SimulatedEmailSender implements NotificationSender {
 
     private static final Logger logger = LoggerFactory.getLogger(SimulatedEmailSender.class);
 
-    // How many of the next attempts will fail.
     private int failuresLeft;
-
-    // If true, every attempt fails.
     private boolean alwaysFail;
-
-    // How many "emails" were sent successfully (useful in tests).
+    private long delayMs;
     private int sentCount;
 
-    // Initial values come from application.properties.
     public SimulatedEmailSender(@Value("${notifications.simulation.failures:0}") int failures,
-                                @Value("${notifications.simulation.always-fail:false}") boolean alwaysFail) {
-        configure(failures, alwaysFail);
+                                @Value("${notifications.simulation.always-fail:false}") boolean alwaysFail,
+                                @Value("${notifications.simulation.delay-ms:0}") long delayMs) {
+        configure(failures, alwaysFail, delayMs);
     }
 
-    // The methods are "synchronized" because two threads use this object:
-    // the BackgroundWorker (sends) and the web page /simulation (changes the settings).
     @Override
-    public synchronized void send(NotificationDelivery delivery) {
-        if (alwaysFail) {
+    public void send(NotificationDelivery delivery) {
+        waitForDelay();
+
+        if (consumeFailure()) {
             logger.warn("Simulated failure for delivery {}.", delivery.getId());
             throw new MailSendException("Simulated email failure");
         }
 
-        if (failuresLeft > 0) {
-            failuresLeft--;
-            logger.warn("Simulated failure for delivery {}. Failures left: {}.", delivery.getId(), failuresLeft);
-            throw new MailSendException("Simulated email failure");
-        }
-
-        sentCount++;
+        registerSent();
         logger.info("Simulated email sent for delivery {}.", delivery.getId());
     }
 
@@ -63,18 +45,24 @@ public class SimulatedEmailSender implements NotificationSender {
         return type == NotificationType.EMAIL;
     }
 
-    public synchronized void configure(int failures, boolean alwaysFail) {
+    public synchronized void configure(int failures, boolean alwaysFail, long delayMs) {
         if (failures < 0) {
             throw new IllegalArgumentException("Failures cannot be negative.");
         }
+
+        if (delayMs < 0) {
+            throw new IllegalArgumentException("Delay cannot be negative.");
+        }
+
         this.failuresLeft = failures;
         this.alwaysFail = alwaysFail;
+        this.delayMs = delayMs;
     }
 
-    // Back to the default: no failures and nothing sent.
     public synchronized void reset() {
         this.failuresLeft = 0;
         this.alwaysFail = false;
+        this.delayMs = 0;
         this.sentCount = 0;
     }
 
@@ -86,7 +74,43 @@ public class SimulatedEmailSender implements NotificationSender {
         return alwaysFail;
     }
 
+    public synchronized long getDelayMs() {
+        return delayMs;
+    }
+
     public synchronized int getSentCount() {
         return sentCount;
+    }
+
+    private void waitForDelay() {
+        long delay = getDelayMs();
+
+        if (delay <= 0) {
+            return;
+        }
+
+        try {
+            Thread.sleep(delay);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new MailSendException("Simulated email interrupted");
+        }
+    }
+
+    private synchronized boolean consumeFailure() {
+        if (alwaysFail) {
+            return true;
+        }
+
+        if (failuresLeft > 0) {
+            failuresLeft--;
+            return true;
+        }
+
+        return false;
+    }
+
+    private synchronized void registerSent() {
+        sentCount++;
     }
 }

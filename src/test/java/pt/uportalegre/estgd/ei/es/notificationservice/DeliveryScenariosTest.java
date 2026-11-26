@@ -1,192 +1,233 @@
 package pt.uportalegre.estgd.ei.es.notificationservice;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
-
-import pt.uportalegre.estgd.ei.es.notificationservice.dto.DeliveryAttemptDto;
-import pt.uportalegre.estgd.ei.es.notificationservice.dto.DeliveryDetailsDto;
-import pt.uportalegre.estgd.ei.es.notificationservice.model.Notification;
-import pt.uportalegre.estgd.ei.es.notificationservice.model.NotificationDelivery;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.PlatformTransactionManager;
+import pt.uportalegre.estgd.ei.es.notificationservice.model.*;
 import pt.uportalegre.estgd.ei.es.notificationservice.model.enums.DeliveryAttemptResult;
+import pt.uportalegre.estgd.ei.es.notificationservice.model.enums.EmailRecipientType;
+import pt.uportalegre.estgd.ei.es.notificationservice.model.enums.NotificationPriority;
 import pt.uportalegre.estgd.ei.es.notificationservice.model.enums.NotificationStatus;
+import pt.uportalegre.estgd.ei.es.notificationservice.model.enums.NotificationType;
 import pt.uportalegre.estgd.ei.es.notificationservice.repository.DeliveryAttemptRepository;
 import pt.uportalegre.estgd.ei.es.notificationservice.repository.EmailDetailsRepository;
 import pt.uportalegre.estgd.ei.es.notificationservice.repository.NotificationDeliveryRepository;
 import pt.uportalegre.estgd.ei.es.notificationservice.repository.NotificationRepository;
+import pt.uportalegre.estgd.ei.es.notificationservice.sender.NotificationSender;
+import pt.uportalegre.estgd.ei.es.notificationservice.service.DeliveryProcessor;
 import pt.uportalegre.estgd.ei.es.notificationservice.service.NotificationService;
-import pt.uportalegre.estgd.ei.es.notificationservice.simulation.SimulatedEmailSender;
 
-import java.util.ArrayList;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import pt.uportalegre.estgd.ei.es.notificationservice.model.enums.NotificationPriority;
-@SpringBootTest
-@ActiveProfiles({"test", "simulation"})
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
 class DeliveryScenariosTest {
 
-    @Autowired
-    private NotificationService notificationService;
-
-    @Autowired
-    private SimulatedEmailSender emailSender;
-
-    @Autowired
+    @Mock
     private NotificationRepository notificationRepository;
 
-    @Autowired
+    @Mock
     private NotificationDeliveryRepository deliveryRepository;
 
-    @Autowired
+    @Mock
     private EmailDetailsRepository emailDetailsRepository;
 
-    @Autowired
+    @Mock
     private DeliveryAttemptRepository attemptRepository;
+
+    @Mock
+    private PlatformTransactionManager transactionManager;
+
+    @Mock
+    private NotificationSender emailSender;
+
+    private FakeDeliveryDatabase database;
+
+    private NotificationService notificationService;
 
     @BeforeEach
     void setUp() {
-        // Every test starts with no failures configured.
-        emailSender.reset();
+        database = new FakeDeliveryDatabase(deliveryRepository, attemptRepository);
+
+        DeliveryProcessor deliveryProcessor = new DeliveryProcessor(deliveryRepository, attemptRepository,
+                List.of(emailSender), transactionManager, 10, 60, 300
+        );
+
+        notificationService = new NotificationService(notificationRepository, deliveryRepository,
+                emailDetailsRepository, attemptRepository, deliveryProcessor, 3
+        );
     }
 
-    @AfterEach
-    void cleanUp() {
-        // Clean the database so tests do not affect each other.
-        // Children are deleted first because of the foreign keys.
-        attemptRepository.deleteAll();
-        emailDetailsRepository.deleteAll();
-        deliveryRepository.deleteAll();
-        notificationRepository.deleteAll();
-    }
-
-    // Scenario 1: the email is sent on the first attempt.
     @Test
-    void successfulDelivery() {
-        Long deliveryId = createDelivery();
+    void createEmailNotification_WithValidRecipients_Success() {
+        String content = "Hello World";
+        String subject = "Subject Test";
+        List<EmailRecipient> recipients = List.of(
+                new EmailRecipient("22999@uportalegre.pt", EmailRecipientType.TO),
+                new EmailRecipient("23406@uportalegre.pt", EmailRecipientType.CC)
+        );
 
-        notificationService.sendDelivery(deliveryId);
+        when(notificationRepository.save(any(Notification.class))).thenAnswer(i -> i.getArgument(0));
+        when(deliveryRepository.save(any(NotificationDelivery.class))).thenAnswer(i -> i.getArgument(0));
 
-        DeliveryDetailsDto delivery = notificationService.findDeliveryDetailsById(deliveryId);
-        assertEquals(NotificationStatus.SENT, delivery.getStatus());
-        assertEquals(1, delivery.getAttemptCount());
-        assertNotNull(delivery.getSentAt());
-        assertEquals(List.of(DeliveryAttemptResult.SUCCESS), getResults(delivery));
-        assertEquals(1, emailSender.getSentCount());
+        Notification result = notificationService.createEmailNotification(content, subject, recipients,
+                NotificationPriority.HIGH);
+
+        assertNotNull(result);
+        assertEquals(content, result.getContent());
+        assertEquals(NotificationPriority.HIGH, result.getPriority());
+        verify(notificationRepository, times(1)).save(any(Notification.class));
+        verify(deliveryRepository, times(1)).save(any(NotificationDelivery.class));
+        verify(emailDetailsRepository, times(1)).save(any(EmailDetails.class));
     }
 
-    // Scenario 2: the first attempt fails and the second one works.
     @Test
-    void failureFollowedBySuccess() {
-        emailSender.configure(1, false); // only the next attempt fails
-        Long deliveryId = createDelivery();
+    void createEmailNotification_WithoutToRecipient_ShouldThrowException() {
+        List<EmailRecipient> recipients = List.of(
+                new EmailRecipient("22999@uportalegre.pt", EmailRecipientType.CC)
+        );
 
-        // Attempt 1 fails: the delivery stays PENDING, so it will be retried.
-        notificationService.sendDelivery(deliveryId);
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                notificationService.createEmailNotification("Content", "Subject", recipients,
+                        NotificationPriority.NORMAL)
+        );
 
-        DeliveryDetailsDto afterFailure = notificationService.findDeliveryDetailsById(deliveryId);
-        assertEquals(NotificationStatus.PENDING, afterFailure.getStatus());
-        assertTrue(afterFailure.getLastErrorMessage().contains("Simulated email failure"));
-
-        // Attempt 2 works.
-        notificationService.sendDelivery(deliveryId);
-
-        DeliveryDetailsDto delivery = notificationService.findDeliveryDetailsById(deliveryId);
-        assertEquals(NotificationStatus.SENT, delivery.getStatus());
-        assertEquals(2, delivery.getAttemptCount());
-        assertEquals(List.of(DeliveryAttemptResult.FAILURE, DeliveryAttemptResult.SUCCESS), getResults(delivery));
-        assertEquals(1, emailSender.getSentCount());
+        assertEquals("At least one TO recipient is required.", ex.getMessage());
+        verifyNoInteractions(notificationRepository, deliveryRepository, emailDetailsRepository);
     }
 
-    // Scenario 3: several failures in a row, then a success on the last allowed attempt.
     @Test
-    void consecutiveFailures() {
-        emailSender.configure(2, false); // the next 2 attempts fail
-        Long deliveryId = createDelivery();
+    void sendDelivery_WhenSuccess_ShouldMarkAsSentAndSuccessAttempt() {
+        NotificationDelivery delivery = database.add(NotificationPriority.NORMAL);
 
-        notificationService.sendDelivery(deliveryId);
-        notificationService.sendDelivery(deliveryId);
+        when(emailSender.supports(NotificationType.EMAIL)).thenReturn(true);
 
-        // After 2 failures the notification was NOT lost: it is still PENDING
-        // and the worker query still finds it.
-        DeliveryDetailsDto afterFailures = notificationService.findDeliveryDetailsById(deliveryId);
-        assertEquals(NotificationStatus.PENDING, afterFailures.getStatus());
-        assertEquals(List.of(DeliveryAttemptResult.FAILURE, DeliveryAttemptResult.FAILURE), getResults(afterFailures));
-        assertTrue(isWaitingForWorker(deliveryId));
+        NotificationDelivery result = notificationService.sendDelivery(delivery.getId());
 
-        // Attempt 3 works.
-        notificationService.sendDelivery(deliveryId);
+        assertEquals(NotificationStatus.SENT, result.getStatus());
+        assertEquals(1, result.getAttemptCount());
+        assertNotNull(result.getSentAt());
+        assertNull(result.getLockedBy());
+        assertNull(result.getLockedAt());
 
-        DeliveryDetailsDto delivery = notificationService.findDeliveryDetailsById(deliveryId);
-        assertEquals(NotificationStatus.SENT, delivery.getStatus());
-        assertEquals(
-                List.of(DeliveryAttemptResult.FAILURE, DeliveryAttemptResult.FAILURE, DeliveryAttemptResult.SUCCESS),
-                getResults(delivery));
+        verify(emailSender, times(1)).send(delivery);
+
+        ArgumentCaptor<DeliveryAttempt> attemptCaptor = ArgumentCaptor.forClass(DeliveryAttempt.class);
+        verify(attemptRepository).save(attemptCaptor.capture());
+        assertEquals(DeliveryAttemptResult.SUCCESS, attemptCaptor.getValue().getResult());
+        assertEquals(1, attemptCaptor.getValue().getAttemptNumber());
+        assertNull(attemptCaptor.getValue().getErrorMessage());
     }
 
-    // Scenario 4: every attempt fails, so the delivery reaches the maximum (3) and FAILS.
     @Test
-    void maximumAttemptsReached() {
-        emailSender.configure(0, true); // every attempt fails
-        Long deliveryId = createDelivery();
+    void sendDelivery_WhenSenderFailsAndAttemptsRemain_ShouldKeepPending() {
+        NotificationDelivery delivery = database.add(NotificationPriority.NORMAL);
 
-        notificationService.sendDelivery(deliveryId);
-        notificationService.sendDelivery(deliveryId);
-        notificationService.sendDelivery(deliveryId);
+        when(emailSender.supports(NotificationType.EMAIL)).thenReturn(true);
+        doThrow(new RuntimeException("Error connecting SMTP")).when(emailSender).send(delivery);
 
-        DeliveryDetailsDto delivery = notificationService.findDeliveryDetailsById(deliveryId);
-        assertEquals(NotificationStatus.FAILED, delivery.getStatus());
-        assertEquals(3, delivery.getAttemptCount());
-        assertNull(delivery.getSentAt());
-        assertEquals(
-                List.of(DeliveryAttemptResult.FAILURE, DeliveryAttemptResult.FAILURE, DeliveryAttemptResult.FAILURE),
-                getResults(delivery));
+        NotificationDelivery result = notificationService.sendDelivery(delivery.getId());
 
-        // A FAILED delivery is no longer picked up by the worker...
-        assertFalse(isWaitingForWorker(deliveryId));
+        assertEquals(NotificationStatus.PENDING, result.getStatus());
+        assertEquals(1, result.getAttemptCount());
+        assertNull(result.getSentAt());
+        assertNull(result.getLockedBy());
 
-        // ...and calling sendDelivery again does nothing (no 4th attempt).
-        notificationService.sendDelivery(deliveryId);
-        assertEquals(3, notificationService.findDeliveryDetailsById(deliveryId).getAttemptCount());
-
-        // Nothing was sent, but the notification is still saved (not lost).
-        assertEquals(0, emailSender.getSentCount());
-        assertEquals(1, notificationRepository.count());
+        ArgumentCaptor<DeliveryAttempt> attemptCaptor = ArgumentCaptor.forClass(DeliveryAttempt.class);
+        verify(attemptRepository).save(attemptCaptor.capture());
+        assertEquals(DeliveryAttemptResult.FAILURE, attemptCaptor.getValue().getResult());
+        assertEquals("Error connecting SMTP", attemptCaptor.getValue().getErrorMessage());
     }
 
-    // ---------- helpers ----------
+    @Test
+    void sendDelivery_WhenSenderFailsOnLastAttempt_ShouldMarkAsFailed() {
+        NotificationDelivery delivery = database.add(NotificationPriority.NORMAL, 1);
 
-    // Creates a notification (like the web form does) and returns the id of its delivery.
-    private Long createDelivery() {
-        Notification notification = notificationService.createEmailNotificationFromStrings(
-                "Test content", "Test subject", "to@test.pt", "", "", NotificationPriority.NORMAL);
-        List<DeliveryDetailsDto> deliveries = notificationService.findDeliveryDetailsByNotificationId(notification.getId());
-        return deliveries.get(0).getId();
+        when(emailSender.supports(NotificationType.EMAIL)).thenReturn(true);
+        doThrow(new RuntimeException("Timeout")).when(emailSender).send(delivery);
+
+        NotificationDelivery result = notificationService.sendDelivery(delivery.getId());
+
+        assertEquals(NotificationStatus.FAILED, result.getStatus());
+        assertEquals(1, result.getAttemptCount());
+        assertNull(result.getSentAt());
     }
 
-    // Returns the result of each attempt, in order (e.g. [FAILURE, SUCCESS]).
-    private List<DeliveryAttemptResult> getResults(DeliveryDetailsDto delivery) {
-        List<DeliveryAttemptResult> results = new ArrayList<>();
-        for (DeliveryAttemptDto attempt : delivery.getAttempts()) {
-            results.add(attempt.getResult());
-        }
-        return results;
+    @Test
+    void sendDelivery_WhenFailsTwiceThenSucceeds_ShouldRecordEveryAttempt() {
+        NotificationDelivery delivery = database.add(NotificationPriority.NORMAL);
+
+        when(emailSender.supports(NotificationType.EMAIL)).thenReturn(true);
+        doThrow(new RuntimeException("Error 1"))
+                .doThrow(new RuntimeException("Error 2"))
+                .doNothing()
+                .when(emailSender).send(delivery);
+
+        notificationService.sendDelivery(delivery.getId());
+        notificationService.sendDelivery(delivery.getId());
+        NotificationDelivery result = notificationService.sendDelivery(delivery.getId());
+
+        assertEquals(NotificationStatus.SENT, result.getStatus());
+        assertEquals(3, result.getAttemptCount());
+
+        ArgumentCaptor<DeliveryAttempt> attemptCaptor = ArgumentCaptor.forClass(DeliveryAttempt.class);
+        verify(attemptRepository, times(3)).save(attemptCaptor.capture());
+
+        List<DeliveryAttempt> attempts = attemptCaptor.getAllValues();
+        assertEquals(DeliveryAttemptResult.FAILURE, attempts.get(0).getResult());
+        assertEquals(1, attempts.get(0).getAttemptNumber());
+        assertEquals("Error 1", attempts.get(0).getErrorMessage());
+        assertEquals(DeliveryAttemptResult.FAILURE, attempts.get(1).getResult());
+        assertEquals(2, attempts.get(1).getAttemptNumber());
+        assertEquals("Error 2", attempts.get(1).getErrorMessage());
+        assertEquals(DeliveryAttemptResult.SUCCESS, attempts.get(2).getResult());
+        assertEquals(3, attempts.get(2).getAttemptNumber());
     }
 
-    // True if the BackgroundWorker would pick this delivery in its next cycle.
-    private boolean isWaitingForWorker(Long deliveryId) {
-        for (NotificationDelivery delivery : deliveryRepository.findEligibleDeliveries(NotificationStatus.PENDING)) {
-            if (delivery.getId().equals(deliveryId)) {
-                return true;
-            }
-        }
-        return false;
+    @Test
+    void sendDelivery_WhenAttemptsAreExhausted_ShouldNotSendAgain() {
+        NotificationDelivery delivery = database.add(NotificationPriority.NORMAL, 1);
+
+        when(emailSender.supports(NotificationType.EMAIL)).thenReturn(true);
+        doThrow(new RuntimeException("Timeout")).when(emailSender).send(delivery);
+
+        notificationService.sendDelivery(delivery.getId());
+        NotificationDelivery result = notificationService.sendDelivery(delivery.getId());
+
+        assertEquals(NotificationStatus.FAILED, result.getStatus());
+        assertEquals(1, result.getAttemptCount());
+        verify(emailSender, times(1)).send(delivery);
+        verify(attemptRepository, times(1)).save(any(DeliveryAttempt.class));
+    }
+
+    @Test
+    void sendDelivery_WhenAlreadySent_ShouldNotSendAgain() {
+        NotificationDelivery delivery = database.add(NotificationPriority.NORMAL);
+
+        when(emailSender.supports(NotificationType.EMAIL)).thenReturn(true);
+
+        notificationService.sendDelivery(delivery.getId());
+        NotificationDelivery result = notificationService.sendDelivery(delivery.getId());
+
+        assertEquals(NotificationStatus.SENT, result.getStatus());
+        assertEquals(1, result.getAttemptCount());
+        verify(emailSender, times(1)).send(delivery);
+    }
+
+    @Test
+    void sendDelivery_WhenDeliveryDoesNotExist_ShouldThrowException() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                notificationService.sendDelivery(99L)
+        );
+
+        assertEquals("Delivery not found: 99", ex.getMessage());
+        verifyNoInteractions(emailSender);
     }
 }

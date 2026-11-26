@@ -35,6 +35,10 @@ public class NotificationDelivery {
 
     private LocalDateTime sentAt;
 
+    private String lockedBy;
+
+    private LocalDateTime lockedAt;
+
     protected NotificationDelivery() {
     }
 
@@ -97,5 +101,21 @@ public class NotificationDelivery {
 
     public void setSentAt(LocalDateTime sentAt) {
         this.sentAt = sentAt;
+    }
+
+    public String getLockedBy() {
+        return lockedBy;
+    }
+
+    public void setLockedBy(String lockedBy) {
+        this.lockedBy = lockedBy;
+    }
+
+    public LocalDateTime getLockedAt() {
+        return lockedAt;
+    }
+
+    public void setLockedAt(LocalDateTime lockedAt) {
+        this.lockedAt = lockedAt;
     }
 }
